@@ -26,7 +26,7 @@
 //! # extern crate tokio; use sn_client::Error;
 //! use sn_client::Client;
 //! # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-//! let client = Client::new(None, None).await?;
+//! let client = create_test_client().await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
 //! # Ok(()) } ); }
@@ -42,7 +42,7 @@
 //! use sn_data_types::Keypair;
 //! # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
 //! let id = Keypair::new_ed25519(&mut OsRng);
-//! let client = Client::new(Some(id), None).await?;
+//! let client = create_test_client_with(Some(id), None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
 //! # Ok(()) } ); }
@@ -71,7 +71,6 @@ pub use self::client::{map_info, Client, MapInfo};
 pub use self::config_handler::dirs;
 pub use self::errors::{Error, ErrorMessage, TransfersError};
 // pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
-pub use self::utils::logging;
 pub use qp2p::Config as QuicP2pConfig;
 
 /// Client trait and related constants.

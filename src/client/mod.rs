@@ -97,7 +97,7 @@ impl Client {
     ///
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     ///
-    /// let client = Client::new(None, None).await?;
+    /// let client = create_test_client().await?;
     /// // Now for example you can perform read operations:
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
@@ -106,7 +106,6 @@ impl Client {
         optional_keypair: Option<Keypair>,
         bootstap_config: Option<HashSet<SocketAddr>>,
     ) -> Result<Self, Error> {
-        crate::utils::init_log();
         let mut rng = OsRng;
 
         let (keypair, is_random_client) = match optional_keypair {
@@ -194,7 +193,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = Client::new(None, None).await?;
+    /// let client = create_test_client().await?;
     /// let _keypair = client.keypair().await;
     ///
     /// # Ok(()) } ); }
@@ -211,7 +210,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = Client::new(None, None).await?;
+    /// let client = create_test_client().await?;
     /// let _pk = client.public_key().await;
     /// # Ok(()) } ); }
     /// ```
@@ -322,43 +321,45 @@ pub async fn attempt_bootstrap(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test_utils::{create_test_client, create_test_client_with};
+    use anyhow::Result;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[tokio::test]
-    pub async fn client_creation() -> Result<(), Error> {
-        let _client = Client::new(None, None).await?;
+    pub async fn client_creation() -> Result<()> {
+        let _client = create_test_client().await?;
 
         Ok(())
     }
 
     #[tokio::test]
     #[ignore]
-    pub async fn client_nonsense_bootstrap_fails() -> Result<(), Error> {
+    pub async fn client_nonsense_bootstrap_fails() -> Result<()> {
         let mut nonsense_bootstrap = HashSet::new();
         let _ = nonsense_bootstrap.insert(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             3033,
         ));
-        let setup = Client::new(None, Some(nonsense_bootstrap)).await;
+        let setup = create_test_client_with(None, Some(nonsense_bootstrap)).await;
         assert!(setup.is_err());
         Ok(())
     }
 
     #[tokio::test]
-    pub async fn client_creation_with_existing_keypair() -> Result<(), Error> {
+    pub async fn client_creation_with_existing_keypair() -> Result<()> {
         let mut rng = OsRng;
         let full_id = Keypair::new_ed25519(&mut rng);
         let pk = full_id.public_key();
 
-        let client = Client::new(Some(full_id), None).await?;
+        let client = create_test_client_with(Some(full_id), None).await?;
         assert_eq!(pk, client.public_key().await);
 
         Ok(())
     }
 
     #[tokio::test]
-    pub async fn long_lived_connection_survives() -> Result<(), Error> {
-        let client = Client::new(None, None).await?;
+    pub async fn long_lived_connection_survives() -> Result<()> {
+        let client = create_test_client().await?;
         tokio::time::delay_for(tokio::time::Duration::from_secs(40)).await;
         let balance = client.get_balance().await?;
         assert_ne!(balance, Token::from_nano(0));

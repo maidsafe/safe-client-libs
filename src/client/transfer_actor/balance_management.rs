@@ -20,7 +20,7 @@ impl Client {
     /// use std::str::FromStr;
     /// use sn_data_types::Token;
     /// # #[tokio::main]async fn main() {let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = Client::new(None, None).await?;
+    /// let client = create_test_client().await?;
     /// // now we check the local balance
     /// let some_balance = client.get_local_balance().await;
     /// assert_eq!(some_balance, Token::from_str("0")?);
@@ -104,7 +104,7 @@ impl Client {
     /// let sk = threshold_crypto::SecretKey::random();
     /// let pk = PublicKey::from(sk.public_key());
     /// // Next we create a random client.
-    /// let mut client = Client::new(None, None).await?;
+    /// let mut client = create_test_client().await?;
     /// let target_balance = Token::from_str("100")?;
     /// // And trigger a simulated payout to our client's PublicKey, so we have token to send.
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
@@ -199,7 +199,9 @@ impl Client {
 mod tests {
     use super::*;
     use crate::errors::TransfersError;
-    use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
+    use crate::utils::{
+        generate_random_vector, test_utils::calculate_new_balance, test_utils::create_test_client,
+    };
     use anyhow::{anyhow, bail, Result};
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Token};
@@ -210,7 +212,7 @@ mod tests {
     pub async fn transfer_actor_can_send_tokens_and_thats_reflected_locally() -> Result<()> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let _ = client
             .send_tokens(keypair.public_key(), Token::from_str("1")?)
@@ -229,7 +231,7 @@ mod tests {
     ) -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let _ = client
             .send_tokens(keypair2.public_key(), Token::from_str("1")?)
@@ -266,7 +268,7 @@ mod tests {
     ) -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let _ = client
             .send_tokens(keypair2.public_key(), Token::from_str("1")?)
@@ -316,7 +318,7 @@ mod tests {
     pub async fn transfer_actor_cannot_send_0_token_req() -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         // Send 0 token to a random PK.
         match client
@@ -344,8 +346,8 @@ mod tests {
     // 4. Transfer 11 token from client A to client B and verify the new balances.
     #[tokio::test]
     pub async fn balance_transfers_between_clients() -> Result<()> {
-        let mut client = Client::new(None, None).await?;
-        let receiving_client = Client::new(None, None).await?;
+        let mut client = create_test_client().await?;
+        let receiving_client = create_test_client().await?;
 
         let wallet1 = receiving_client.public_key().await;
 
@@ -367,7 +369,7 @@ mod tests {
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
-        let desired_balance = calculate_new_balance(balance, None, Some(Token::from_str("11.0")?));
+        let desired_balance = calculate_new_balance(balance, None, Some(Token::from_str("11.0")?))?;
 
         // loop until correct
         while new_balance != desired_balance {
@@ -401,8 +403,8 @@ mod tests {
     // 5. Assert Client B's balance is unchanged.
     #[tokio::test]
     pub async fn insufficient_balance_transfers() -> Result<()> {
-        let client = Client::new(None, None).await?;
-        let receiving_client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
+        let receiving_client = create_test_client().await?;
 
         let wallet1 = receiving_client.public_key().await;
 
@@ -425,8 +427,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn cannot_write_with_insufficient_balance() -> Result<()> {
-        let client = Client::new(None, None).await?;
-        let receiving_client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
+        let receiving_client = create_test_client().await?;
 
         let wallet1 = receiving_client.public_key().await;
 

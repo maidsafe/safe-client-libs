@@ -47,7 +47,7 @@ impl Client {
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// let target_blob = BlobAddress::Public(XorName::random());
-    /// let client = Client::new(None, None).await?;
+    /// let client = create_test_client().await?;
     ///
     /// // grab the random blob from the network
     /// let _data = client.read_blob(target_blob, None, None).await?;
@@ -91,7 +91,7 @@ impl Client {
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(None, None).await?;
+    /// let mut client = create_test_client().await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
@@ -119,7 +119,7 @@ impl Client {
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(None, None).await?;
+    /// let mut client = create_test_client().await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
@@ -186,7 +186,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: anyhow::Result<()> = futures::executor::block_on( async {
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(None, None).await?;
+    /// let mut client = create_test_client().await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some private data".to_vec();
     /// let address = client.store_private_blob(&data).await?;
@@ -319,22 +319,20 @@ impl Client {
 }
 #[cfg(test)]
 mod tests {
-    use super::{Blob, BlobAddress, Client, Error};
-    use crate::utils::{generate_random_vector, test_utils::gen_ed_keypair};
+    use super::{Blob, BlobAddress, Error};
+    use crate::utils::{
+        generate_random_vector, test_utils::create_test_client, test_utils::gen_ed_keypair,
+    };
     use anyhow::{bail, Result};
     use sn_data_types::{PrivateBlob, PublicBlob, Token};
     use sn_messaging::client::Error as ErrorMessage;
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
-    use unwrap::unwrap;
 
     // Test putting and getting pub blob.
     #[tokio::test]
     pub async fn pub_blob_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
-        // The `Client::new(None)` initializes the client with 10 token.
-        let _start_bal = unwrap!(Token::from_str("10"));
-
+        let client = create_test_client().await?;
         let value = generate_random_vector::<u8>(10);
         let data = Blob::Public(PublicBlob::new(value.clone()));
         let address = *data.address();
@@ -367,7 +365,7 @@ mod tests {
     // Test putting, getting, and deleting unpub blob.
     #[tokio::test]
     pub async fn unpub_blob_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let pk = client.public_key().await;
 
@@ -450,7 +448,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn blob_deletions_should_cost_put_price() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let address = client
             .store_private_blob(&generate_random_vector::<u8>(10))
@@ -490,7 +488,7 @@ mod tests {
         let size = 1024;
         let data = generate_random_vector(size);
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let address = client.store_public_blob(&data).await?;
 
         let res = client
@@ -507,7 +505,7 @@ mod tests {
 
         let value = generate_random_vector(size);
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let address = client.store_private_blob(&value).await?;
 
@@ -546,7 +544,7 @@ mod tests {
         let data = generate_random_vector(size);
         {
             // Read first half
-            let client = Client::new(None, None).await?;
+            let client = create_test_client().await?;
 
             let address = client.store_public_blob(&data).await?;
 
@@ -563,7 +561,7 @@ mod tests {
         let data = generate_random_vector(size);
         {
             // Read Second half
-            let client = Client::new(None, None).await?;
+            let client = create_test_client().await?;
 
             let address = client.store_public_blob(&data).await?;
 
@@ -587,7 +585,7 @@ mod tests {
     async fn gen_data_then_create_and_retrieve(size: usize, publish: bool) -> Result<()> {
         let raw_data = generate_random_vector(size);
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         // gen address without putting to the network (published and unencrypted)
         let blob = if publish {

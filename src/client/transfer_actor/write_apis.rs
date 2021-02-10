@@ -26,7 +26,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::TransfersError;
+    use crate::{errors::TransfersError, utils::test_utils::create_test_client_with};
     use anyhow::{bail, Result};
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Sequence};
@@ -39,7 +39,7 @@ mod tests {
         let pk = keypair.public_key();
         let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
 
-        let initial_actor = Client::new(Some(keypair), None).await?;
+        let initial_actor = create_test_client_with(Some(keypair), None).await?;
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(Error::Transfer(TransfersError::InsufficientBalance)) => Ok(()),
             res => bail!(

@@ -46,7 +46,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -98,7 +98,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -151,7 +151,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -237,7 +237,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -282,7 +282,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -348,7 +348,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -645,7 +645,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::gen_ed_keypair;
+    use crate::utils::test_utils::{create_test_client, gen_ed_keypair};
     use anyhow::{anyhow, bail, Result};
     use sn_data_types::{MapAction, MapKind, Token};
     use sn_messaging::client::Error as ErrorMessage;
@@ -659,7 +659,7 @@ mod tests {
     // 3. Fetch the entire. data object and verify
     #[tokio::test]
     pub async fn unseq_map_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -709,7 +709,7 @@ mod tests {
     // 3. Fetch the entire. data object and verify
     #[tokio::test]
     pub async fn seq_map_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -768,7 +768,7 @@ mod tests {
     // 2. Try getting the data object. It should bail
     #[tokio::test]
     pub async fn del_seq_map_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Seq { name, tag };
@@ -796,7 +796,7 @@ mod tests {
     // 2. Try getting the data object. It should bail
     #[tokio::test]
     pub async fn del_unseq_map_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
@@ -828,12 +828,12 @@ mod tests {
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let owner = client.public_key().await;
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         client.delete_map(mapref).await?;
 
@@ -853,7 +853,7 @@ mod tests {
     #[tokio::test]
     pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client() -> Result<()>
     {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new()
             .allow(MapAction::Read)
@@ -893,7 +893,7 @@ mod tests {
     // 4. Delete a user's permissions from the permission set and verify the deletion.
     #[tokio::test]
     pub async fn map_can_modify_permissions_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -969,7 +969,7 @@ mod tests {
     // 4. Fetch a value for a particular key and verify
     #[tokio::test]
     pub async fn map_mutations_test() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -1062,7 +1062,7 @@ mod tests {
             Err(err) => bail!("Unexpected error: {:?}", err),
         };
 
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -1127,7 +1127,7 @@ mod tests {
     pub async fn map_deletions_should_cost_put_price() -> Result<()> {
         let name = XorName(rand::random());
         let tag = 10;
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let owner = client.public_key().await;
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;

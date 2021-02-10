@@ -52,7 +52,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -127,7 +127,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -197,7 +197,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -254,7 +254,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -334,7 +334,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -382,7 +382,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -438,7 +438,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -495,7 +495,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -557,7 +557,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -609,7 +609,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -689,7 +689,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -748,7 +748,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -805,7 +805,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -860,7 +860,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -937,7 +937,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -1003,8 +1003,8 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::gen_ed_keypair;
-    use anyhow::anyhow;
+    use crate::utils::test_utils::{create_test_client, gen_ed_keypair};
+    use anyhow::{anyhow, Result};
     use sn_data_types::{SequenceAction, SequencePrivatePermissions, Token};
     use sn_messaging::client::Error as ErrorMessage;
     use std::str::FromStr;
@@ -1013,10 +1013,10 @@ mod tests {
     use xor_name::XorName;
 
     #[tokio::test]
-    pub async fn sequence_deletions_should_cost_put_price() -> Result<(), Error> {
+    pub async fn sequence_deletions_should_cost_put_price() -> Result<()> {
         let name = XorName(rand::random());
         let tag = 10;
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         let owner = client.public_key().await;
         let perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
         let sequence_address = client
@@ -1047,8 +1047,8 @@ mod tests {
     /// Sequence data tests ///
 
     #[tokio::test]
-    pub async fn sequence_basics_test() -> Result<(), Error> {
-        let client = Client::new(None, None).await?;
+    pub async fn sequence_basics_test() -> Result<()> {
+        let client = create_test_client().await?;
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1107,8 +1107,8 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn sequence_private_permissions_test() -> Result<(), Error> {
-        let client = Client::new(None, None).await?;
+    pub async fn sequence_private_permissions_test() -> Result<()> {
+        let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1163,7 +1163,7 @@ mod tests {
                 assert!(user_perms.is_allowed(SequenceAction::Append));
                 assert!(user_perms.is_allowed(SequenceAction::Admin));
             }
-            SequencePermissions::Public(_) => return Err(Error::IncorrectPermissions),
+            SequencePermissions::Public(_) => return Err(Error::IncorrectPermissions.into()),
         }
 
         let sim_client = gen_ed_keypair().public_key();
@@ -1210,13 +1210,13 @@ mod tests {
                 assert!(!user_perms.is_allowed(SequenceAction::Admin));
                 Ok(())
             }
-            SequencePermissions::Public(_) => Err(Error::IncorrectPermissions),
+            SequencePermissions::Public(_) => Err(Error::IncorrectPermissions.into()),
         }
     }
 
     #[tokio::test]
-    pub async fn sequence_pub_permissions_test() -> anyhow::Result<()> {
-        let client = Client::new(None, None).await?;
+    pub async fn sequence_pub_permissions_test() -> Result<()> {
+        let client = create_test_client().await?;
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1329,10 +1329,10 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn append_to_sequence_test() -> anyhow::Result<()> {
+    pub async fn append_to_sequence_test() -> Result<()> {
         let name = XorName(rand::random());
         let tag = 10;
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let owner = client.public_key().await;
         let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
@@ -1435,10 +1435,10 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn sequence_owner_test() -> Result<(), Error> {
+    pub async fn sequence_owner_test() -> Result<()> {
         let name = XorName(rand::random());
         let tag = 10;
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
 
         let owner = client.public_key().await;
         let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
@@ -1495,8 +1495,8 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn sequence_can_delete_private_test() -> anyhow::Result<()> {
-        let client = Client::new(None, None).await?;
+    pub async fn sequence_can_delete_private_test() -> Result<()> {
+        let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1539,8 +1539,8 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn sequence_cannot_delete_public_test() -> anyhow::Result<()> {
-        let client = Client::new(None, None).await?;
+    pub async fn sequence_cannot_delete_public_test() -> Result<()> {
+        let client = create_test_client().await?;
 
         let name = XorName(rand::random());
         let tag = 15000;
