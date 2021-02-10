@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.46.7](https://github.com/maidsafe/sn_client/compare/v0.46.6...v0.46.7) (2021-02-10)
+
+
+### Features
+
+* use redirected addesses for elders ([cbd89b5](https://github.com/maidsafe/sn_client/commit/cbd89b564da12d42fdbd62b4af92f80e6bf26cb4))
+
+
+### Bug Fixes
+
+* doc tests ([e70db31](https://github.com/maidsafe/sn_client/commit/e70db31856d3951a6127ac46e73d8ae754bee112))
+
 ### [0.46.6](https://github.com/maidsafe/sn_client/compare/v0.46.5...v0.46.6) (2021-02-09)
 
 
