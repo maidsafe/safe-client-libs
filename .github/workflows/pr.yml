@@ -161,7 +161,7 @@ jobs:
 
       # Test
       - name: Immutable Data Tests
-        run: cargo test --features=testing create_and_retrieve # id tests only
+        run: cargo test create_and_retrieve # id tests only
 
   # Test publish using --dry-run.
   test-publish:
