@@ -368,7 +368,7 @@ impl ConnectionManager {
                     &vote_map,
                     received_errors,
                     &mut has_elected_a_response,
-                )?;
+                );
             }
         }
 
@@ -388,7 +388,7 @@ impl ConnectionManager {
         vote_map: &VoteMap,
         received_errors: usize,
         has_elected_a_response: &mut bool,
-    ) -> Result<(Option<QueryResponse>, usize), Error> {
+    ) -> (Option<QueryResponse>, usize) {
         trace!("No response selected yet, checking if fallback needed");
         let mut number_of_responses = 0;
         let mut most_popular_response = current_winner;
@@ -421,12 +421,12 @@ impl ConnectionManager {
                 if let QueryResponse::GetHistory(Ok(history)) = &message {
                     // if we're not more popular but in simu payout mode, check if we have more history...
                     if cfg!(feature = "simulated-payouts") && votes == &most_popular_response.1 {
-                        if let Some(QueryResponse::GetHistory(res)) = &most_popular_response.0 {
-                            if let Ok(popular_history) = res {
-                                if history.len() > popular_history.len() {
-                                    trace!("GetHistory response received in Simulated Payouts... choosing longest history. {:?}", history);
-                                    most_popular_response = (Some(message.clone()), *votes)
-                                }
+                        if let Some(QueryResponse::GetHistory(Ok(popular_history))) =
+                            &most_popular_response.0
+                        {
+                            if history.len() > popular_history.len() {
+                                trace!("GetHistory response received in Simulated Payouts... choosing longest history. {:?}", history);
+                                most_popular_response = (Some(message.clone()), *votes)
                             }
                         }
                     }
@@ -439,7 +439,7 @@ impl ConnectionManager {
             *has_elected_a_response = true;
         }
 
-        Ok(most_popular_response)
+        most_popular_response
     }
 
     // Private helpers

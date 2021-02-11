@@ -59,9 +59,6 @@ pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
 /// Capacity of the Sequence CRDT local replica size.
 pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 
-/// Expected cost of mutation operations.
-pub const COST_OF_PUT: Token = Token::from_nano(1);
-
 /// Client object
 #[derive(Clone)]
 pub struct Client {

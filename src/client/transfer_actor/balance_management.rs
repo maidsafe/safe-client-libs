@@ -373,7 +373,7 @@ mod tests {
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
-        let desired_balance = calculate_new_balance(balance, None, Some(Token::from_str("11.0")?))?;
+        let desired_balance = calculate_new_balance(balance, Token::from_str("11.0")?)?;
 
         // loop until correct
         while new_balance != desired_balance {

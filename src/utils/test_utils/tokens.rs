@@ -6,7 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::COST_OF_PUT;
 use anyhow::{anyhow, Result};
 use sn_data_types::{Keypair, Token};
 
@@ -18,30 +17,12 @@ pub fn gen_ed_keypair() -> Keypair {
 
 /// Helper function to calculate the total cost of expenditure by adding number of mutations and
 /// amount of transferred coins if any.
-pub fn calculate_new_balance(
-    mut balance: Token,
-    mutation_count: Option<u64>,
-    transferred_coins: Option<Token>,
-) -> Result<Token> {
-    if let Some(x) = mutation_count {
-        let amount = Token::from_nano(x * COST_OF_PUT.as_nano());
-        balance = balance.checked_sub(amount).ok_or_else(|| {
-            anyhow!(
-                "Failed to substract {} tokens amount from {}",
-                amount,
-                balance
-            )
-        })?;
-    }
-    if let Some(coins) = transferred_coins {
-        balance = balance.checked_sub(coins).ok_or_else(|| {
-            anyhow!(
-                "Failed to substract {} tokens amount from {}",
-                coins,
-                balance
-            )
-        })?;
-    }
-
-    Ok(balance)
+pub fn calculate_new_balance(balance: Token, transferred_coins: Token) -> Result<Token> {
+    balance.checked_sub(transferred_coins).ok_or_else(|| {
+        anyhow!(
+            "Failed to substract {} tokens amount from {}",
+            transferred_coins,
+            balance
+        )
+    })
 }
