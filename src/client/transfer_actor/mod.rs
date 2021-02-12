@@ -5,13 +5,15 @@ use sn_data_types::{
     DebitId, Keypair, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
 };
 use sn_messaging::client::{
-    Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery,
+    Cmd, DataCmd, Message, MessageId, Query, QueryResponse, TransferCmd, TransferQuery,
 };
 use sn_messaging::MessageId;
 
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::channel;
+
+use xor_name::XorName;
 
 /// Module for token balance management
 pub mod balance_management;
@@ -265,11 +267,14 @@ impl Client {
 
         let random_xor = XorName::random();
         let id = MessageId(random_xor);
-        trace!("Creating query message with id : {:?}", id);
+        trace!(
+            "Creating query message for get replica keys with id : {:?}",
+            id
+        );
+
         let message = Message::Query {
             query: keys_query_msg,
             id,
-            // the only msg which doesnt know our PKset
             target_section_pk: None,
         };
 

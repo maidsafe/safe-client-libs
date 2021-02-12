@@ -240,11 +240,12 @@ impl Client {
         let random_xor = XorName::random();
         let id = MessageId(random_xor);
         trace!("Creating cmd message with id: {:?}", id);
+        let target_section_pk = Some(PublicKey::Bls(self.replicas_pk_set.public_key()));
 
         Message::Cmd {
             cmd: msg_contents,
             id,
-            target_section_pk: Some(PublicKey::Bls(self.replicas_pk_set.public_key())),
+            target_section_pk,
         }
     }
 
@@ -253,10 +254,12 @@ impl Client {
         let random_xor = XorName::random();
         let id = MessageId(random_xor);
         trace!("Creating query message with id : {:?}", id);
+        let target_section_pk = Some(PublicKey::Bls(self.replicas_pk_set.public_key()));
+
         Message::Query {
             query: msg_contents,
             id,
-            target_section_pk: Some(PublicKey::Bls(self.replicas_pk_set.public_key())),
+            target_section_pk,
         }
     }
 
