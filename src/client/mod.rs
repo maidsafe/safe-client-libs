@@ -37,11 +37,10 @@ use crate::errors::Error;
 use crdts::Dot;
 use futures::lock::Mutex;
 use log::{debug, info, trace, warn};
-use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
-use sn_data_types::{Keypair, PublicKey, Token};
+use sn_data_types::{Keypair, PublicKey, ReplicaPublicKeySet, Token};
 use sn_messaging::{
-    client::{Cmd, DataCmd, Message, Query, QueryResponse},
+    client::{Cmd, DataCmd, Message, MessageId, Query, QueryResponse},
     MessageId,
 };
 use std::{
@@ -102,7 +101,7 @@ impl Client {
     /// ```
     pub async fn new(
         optional_keypair: Option<Keypair>,
-        config_file_path: Option<&Path>,
+        config_file_path: Option<&'static Path>,
         bootstrap_config: Option<HashSet<SocketAddr>>,
     ) -> Result<Self, Error> {
         let mut rng = OsRng;
@@ -124,20 +123,20 @@ impl Client {
 
         let (notification_sender, notification_receiver) = unbounded_channel::<Error>();
 
-        let qp2p_config = Config::new(config_file_path, bootstrap_config).qp2p;
-
         // Create the connection manager
-        let mut connection_manager =
-            attempt_bootstrap(qp2p_config, keypair.clone(), notification_sender).await?;
+        let (connection_manager, replicas_pk_set) = attempt_bootstrap(
+            keypair.clone(),
+            config_file_path,
+            bootstrap_config,
+            notification_sender,
+        )
+        .await?;
 
         // random PK used for from payment
         let random_payment_id = Keypair::new_ed25519(&mut rng);
         let random_payment_pk = random_payment_id.public_key();
 
         let simulated_farming_payout_dot = Dot::new(random_payment_pk, 0);
-
-        let replicas_pk_set =
-            Self::get_replica_keys(keypair.clone(), &mut connection_manager).await?;
 
         let validator = ClientTransferValidator {};
 
@@ -289,21 +288,26 @@ impl Client {
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
 pub async fn attempt_bootstrap(
-    qp2p_config: QuicP2pConfig,
     keypair: Keypair,
+    config_file_path: Option<&'static Path>,
+    bootstrap_config: Option<HashSet<SocketAddr>>,
     notification_sender: UnboundedSender<Error>,
-) -> Result<ConnectionManager, Error> {
+) -> Result<(ConnectionManager, ReplicaPublicKeySet), Error> {
     let mut attempts: u32 = 0;
+    let qp2p_config = Config::new(config_file_path, bootstrap_config.clone()).qp2p;
+    let mut connection_manager = ConnectionManager::new(
+        // qp2p_config.clone(),
+        config_file_path,
+        bootstrap_config.clone(),
+        keypair.clone(),
+        notification_sender.clone(),
+    )
+    .await?;
+
     loop {
-        let mut connection_manager = ConnectionManager::new(
-            qp2p_config.clone(),
-            keypair.clone(),
-            notification_sender.clone(),
-        )
-        .await?;
-        let res = connection_manager.bootstrap().await;
+        let res = connection_manager.bootstrap(qp2p_config.clone()).await;
         match res {
-            Ok(()) => return Ok(connection_manager),
+            Ok(pk_set) => return Ok((connection_manager, pk_set)),
             Err(err) => {
                 attempts += 1;
                 if attempts < 3 {

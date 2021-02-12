@@ -2,18 +2,15 @@ use crate::connection_manager::STANDARD_ELDERS_COUNT;
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
-    DebitId, Keypair, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
+    DebitId, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
 };
 use sn_messaging::client::{
-    Cmd, DataCmd, Message, MessageId, Query, QueryResponse, TransferCmd, TransferQuery,
+    Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery,
 };
 use sn_messaging::MessageId;
 
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
-use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::channel;
-
-use xor_name::XorName;
 
 /// Module for token balance management
 pub mod balance_management;
@@ -25,7 +22,7 @@ pub mod write_apis;
 /// Actual Transfer Actor
 pub use sn_transfers::TransferActor as SafeTransferActor;
 
-use crate::client::{Client, ConnectionManager};
+use crate::client::Client;
 use crate::errors::Error;
 use xor_name::XorName;
 /// Simple client side validations
@@ -256,36 +253,6 @@ impl Client {
         Ok(payment_proof)
     }
 
-    /// Get our replica instance PK set
-    pub(crate) async fn get_replica_keys(
-        keypair: Keypair,
-        cm: &mut ConnectionManager,
-    ) -> Result<PublicKeySet, Error> {
-        trace!("Getting replica keys for {:?}", keypair);
-        let pk = keypair.public_key();
-        let keys_query_msg = Query::Transfer(TransferQuery::GetReplicaKeys(pk));
-
-        let random_xor = XorName::random();
-        let id = MessageId(random_xor);
-        trace!(
-            "Creating query message for get replica keys with id : {:?}",
-            id
-        );
-
-        let message = Message::Query {
-            query: keys_query_msg,
-            id,
-            target_section_pk: None,
-        };
-
-        let res = cm.send_query(&message).await?;
-
-        match res {
-            QueryResponse::GetReplicaKeys(pk_set) => Ok(pk_set?),
-            _ => Err(Error::UnexpectedReplicaKeysResponse(pk)),
-        }
-    }
-
     /// Send message and await validation and constructing of TransferAgreementProof
     async fn await_validation(
         &self,
@@ -379,11 +346,10 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::utils::test_utils::{create_test_client, create_test_client_with};
     use anyhow::{anyhow, Result};
     use rand::rngs::OsRng;
-    use sn_data_types::Token;
+    use sn_data_types::{Keypair, Token};
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
 

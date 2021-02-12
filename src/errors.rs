@@ -9,7 +9,7 @@
 use qp2p::Error as QuicP2pError;
 use sn_data_types::{Error as DtError, PublicKey};
 pub use sn_messaging::client::Error as ErrorMessage;
-use sn_messaging::client::{CmdError, Event, QueryResponse, TransferError};
+use sn_messaging::client::{CmdError, Event, MessageId, QueryResponse, TransferError};
 pub use sn_messaging::Error as MessagingError;
 pub use sn_transfers::Error as TransfersError;
 use std::io;
@@ -44,6 +44,10 @@ pub enum Error {
     /// Client has not gone trhough qp2p bootstrap process yet
     #[error("Client has failed to bootstrap yet")]
     NotBootstrapped,
+
+    /// Error at sender for ReplicaPkSet on bootstrap
+    #[error("Client bootstrap failed as could not set ReplicaPkSet on client")]
+    CouldNotSaveReplicaPkSet,
 
     /// Could not connect to sufficient elder to retrieve reliable responses.
     #[error("Problem connecting to sufficient elder")]
@@ -105,6 +109,10 @@ pub enum Error {
     /// Not in testnet "simulated payout" mode
     #[error("Simulated payouts unavailable without 'simualted-payouts' feature flag at build")]
     NotBuiltWithSimulatedPayouts,
+
+    /// An infrastructure update was received. The referenced message likely failed.
+    #[error("An network info update was received in response to message with id: {0:?}. This will likely need to be resent")]
+    NetworkInfoUpdateMayHaveAffectedMsg(MessageId),
 
     /// Other sn_data_types errors
     #[error(transparent)]
