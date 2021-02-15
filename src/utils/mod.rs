@@ -18,15 +18,12 @@ use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::OsRng;
 use rand::{self, Rng};
 use serde::{Deserialize, Serialize};
-use tiny_keccak::sha3_512;
 
 /// Length of the symmetric encryption key.
 pub const SYM_ENC_KEY_LEN: usize = 32;
 
 /// Length of the nonce used for symmetric encryption.
 pub const SYM_ENC_NONCE_LEN: usize = 16;
-
-const SHA3_512_HASH_LEN: usize = 64;
 
 /// Symmetric encryption key
 pub type SymEncKey = [u8; SYM_ENC_KEY_LEN];
@@ -147,17 +144,6 @@ where
         .collect()
 }
 
-/// Derive Password, Keyword and PIN (in order).
-pub fn derive_secrets(acc_locator: &[u8], acc_password: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-    let locator_hash = sha3_512(acc_locator);
-
-    let pin = sha3_512(&locator_hash[SHA3_512_HASH_LEN / 2..]).to_vec();
-    let keyword = locator_hash.to_vec();
-    let password = sha3_512(acc_password).to_vec();
-
-    (password, keyword, pin)
-}
-
 /// Convert binary data to a diplay-able format
 #[inline]
 pub fn bin_data_format(data: &[u8]) -> String {
@@ -215,29 +201,5 @@ mod tests {
         assert_eq!(vec0.len(), SIZE);
         assert_eq!(vec1.len(), SIZE);
         assert_eq!(vec2.len(), SIZE);
-    }
-
-    // Test derivation of distinct password, keyword, and pin secrets.
-    #[test]
-    fn secrets_derivation() {
-        // Random pass-phrase
-        {
-            let secret_0 = generate_random_string(SIZE);
-            let secret_1 = generate_random_string(SIZE);
-            let (password, keyword, pin) = derive_secrets(secret_0.as_bytes(), secret_1.as_bytes());
-            assert_ne!(pin, keyword);
-            assert_ne!(password, pin);
-            assert_ne!(password, keyword);
-        }
-
-        // Nullary pass-phrase
-        {
-            let secret_0 = String::new();
-            let secret_1 = String::new();
-            let (password, keyword, pin) = derive_secrets(secret_0.as_bytes(), secret_1.as_bytes());
-            assert_ne!(pin, keyword);
-            assert_ne!(password, pin);
-            assert_eq!(password, keyword);
-        }
     }
 }
