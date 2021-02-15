@@ -212,10 +212,25 @@ impl Client {
     pub async fn delete_blob(&self, address: BlobAddress) -> Result<(), Error> {
         info!("Deleting blob at given address: {:?}", address);
 
-        let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(address));
+        let mut data = self.fetch_blob_from_network(address).await?;
 
-        self.pay_and_send_data_command(cmd).await?;
-        Ok(())
+        loop {
+            match deserialize(data.value())? {
+                DataMapLevel::Root(_) => {
+                    let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(*data.address()));
+                    self.pay_and_send_data_command(cmd).await?;
+                    return Ok(());
+                }
+                DataMapLevel::Child(data_map) => {
+                    let serialized_blob = self
+                        .read_using_data_map(data_map, false, None, None)
+                        .await?;
+                    let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(*data.address()));
+                    self.pay_and_send_data_command(cmd).await?;
+                    data = deserialize(&serialized_blob)?;
+                }
+            }
+        }
     }
 
     /// Uses self_encryption to generated an encrypted blob serialized data map, without writing to the network
