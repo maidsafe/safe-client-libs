@@ -56,6 +56,7 @@ type ElderConnectionMap = HashSet<SocketAddr>;
 
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
+#[derive(Clone)]
 pub struct ConnectionManager {
     keypair: Keypair,
     qp2p: QuicP2p,
@@ -66,23 +67,19 @@ pub struct ConnectionManager {
     notification_sender: UnboundedSender<Error>,
     // receive the pk set when calling bootstrap func
     key_set_sender: Option<Sender<Result<ReplicaPublicKeySet, Error>>>,
-    config_file_path: Option<&'static Path>,
+    // config_file_path: Option<&'static Path>,
 }
 
 impl ConnectionManager {
     /// Create a new connection manager.
     pub async fn new(
-        // mut config: QuicP2pConfig,
-        config_file_path: Option<&'static Path>,
-        bootstrap_config: Option<HashSet<SocketAddr>>,
+        config: QuicP2pConfig,
+        // config_file_path: Option<&'static Path>,
+        // bootstrap_config: Option<HashSet<SocketAddr>>,
         keypair: Keypair,
         notification_sender: UnboundedSender<Error>,
     ) -> Result<Self, Error> {
-        let mut config = Config::new(config_file_path, bootstrap_config).qp2p;
-
-        config.local_port = Some(0); // Make sure we always use a random port for client connections.
-        config.idle_timeout_msec = Some(5500);
-        config.keep_alive_interval_msec = Some(4000);
+        // let mut config = Config::new(config_file_path, bootstrap_config).qp2p;
 
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
 
@@ -94,28 +91,60 @@ impl ConnectionManager {
             pending_transfer_validations: Arc::new(Mutex::new(HashMap::default())),
             pending_query_responses: Arc::new(Mutex::new(HashMap::default())),
             notification_sender,
-            config_file_path,
+            // config_file_path,
             key_set_sender: None,
         })
     }
 
+    /// Loop bootstrap attempts up to three times
+    pub async fn retry_bootstrap(mut self, bootstrap_config: Option<&Vec<SocketAddr>> ) -> Result<(Self, ReplicaPublicKeySet), Error> {
+        let mut attempts: u32 = 0;
+
+        loop {
+            let res = self.clone().bootstrap(bootstrap_config.clone()).await;
+            match res {
+                Ok(pk_set) => return Ok((self, pk_set)),
+                Err(err) => {
+                    attempts += 1;
+                    if attempts < 3 {
+                        trace!("Error connecting to network! Retrying... ({})", attempts);
+                    } else {
+                        return Err(err);
+                    }
+                }
+            }
+        }
+    }
+
     /// Bootstrap to the network maintaining connections to several nodes.
     pub async fn bootstrap(
-        &mut self,
-        qp2p_config: QuicP2pConfig,
-        // bootstrap_config: Option<HashSet<SocketAddr>>,
+        mut self,
+        // qp2p_config: QuicP2pConfig,
+        bootstrap_config: Option<&Vec<SocketAddr>>,
     ) -> Result<ReplicaPublicKeySet, Error> {
         trace!(
             "Trying to bootstrap to the network with public_key: {:?}",
             self.keypair.public_key()
         );
 
+        // bootstrap qp2p
+        // let (
+        //     endpoint,
+        //     _incoming_connections,
+        //     incoming_messages,
+        //     _disconnections,
+        //     bootstrapped_peer,
+        // ) = self.qp2p.bootstrap().await?;
+        // self.endpoint = Some(endpoint);
+
         // Bootstrap and send a handshake request to receive
         // the list of Elders we can then connect to
-        self.bootstrap_and_handshake(qp2p_config).await?;
-
+        let incoming_messages = self.get_section(bootstrap_config).await?;
+        
+        
         let (sender, mut receiver) = channel::<Result<ReplicaPublicKeySet, Error>>(1);
         self.key_set_sender = Some(sender);
+        self.listen_to_incoming_messages(incoming_messages).await;
 
         // wait on our section PK set to be received before progressing
         if let Some(res) = receiver.next().await {
@@ -466,20 +495,20 @@ impl ConnectionManager {
 
     // Bootstrap to the network to obtaining the list of
     // nodes we should establish connections with
-    async fn bootstrap_and_handshake(&mut self, qp2p_config: QuicP2pConfig) -> Result<(), Error> {
-        trace!("Bootstrapping with config {:?}", qp2p_config);
+    async fn get_section(&mut self, bootstrap_nodes_override: Option<&Vec<SocketAddr>>) -> Result<IncomingMessages, Error> {
+        info!("Sending Infrastructure::GetSectionRequest");
 
-        let qp2p = QuicP2p::with_config(Some(qp2p_config), Default::default(), false)?;
+        // let qp2p = QuicP2p::with_config(Some(qp2p_config), Default::default(), false)?;
         // overwrite our qp2p instance with out new bootstrapped one
-        self.qp2p = qp2p;
+        // self.qp2p = qp2p;
 
         let (
             endpoint,
             _incoming_connections,
-            _incoming_messages,
+            incoming_messages,
             _disconnections,
             bootstrapped_peer,
-        ) = self.qp2p.bootstrap().await?;
+        ) = self.qp2p.bootstrap(bootstrap_nodes_override).await?;
         self.endpoint = Some(endpoint);
 
         // 1. We query the network for section info.
@@ -491,7 +520,7 @@ impl ConnectionManager {
         let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
         endpoint.send_message(msg, &bootstrapped_peer).await?;
 
-        Ok(())
+        Ok(incoming_messages)
     }
 
     pub fn number_of_connected_elders(&self) -> usize {
@@ -612,16 +641,18 @@ impl ConnectionManager {
 
     /// Listen for incoming messages on a connection
     pub async fn listen_to_incoming_messages(
-        &'static mut self,
+        mut self,
         mut incoming_messages: IncomingMessages,
     ) -> Result<(), Error> {
         debug!("Adding IncomingMessages listener");
 
-        // Spawn a thread
-        let _ = tokio::spawn(async move {
+        // Spawn a thread for listening
+        tokio::spawn(async move {
+            trace!("Listener thread spawned");
+
             while let Some((src, message)) = incoming_messages.next().await {
                 let message_type = WireMsg::deserialize(message)?;
-                warn!("Message received at listener from {:?}", &src);
+                trace!("Message received at listener from {:?}", &src);
 
                 match message_type {
                     MessageType::NetworkInfo(msg) => {
@@ -631,7 +662,7 @@ impl ConnectionManager {
                         self.handle_client_msg(envelope, src).await;
                     }
                     msg_type => {
-                        warn!("Unexpected message type received: {:?}", msg_type);
+                        info!("Unexpected message type received: {:?}", msg_type);
                     }
                 }
             }
@@ -639,7 +670,6 @@ impl ConnectionManager {
             Ok::<(), Error>(())
         });
 
-        // Some or None, not super important if this existed before...
         Ok(())
     }
 
@@ -654,10 +684,10 @@ impl ConnectionManager {
                 addresses,
             )) => {
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
-                let config = Config::new(self.config_file_path, Some(addresses.iter().cloned().collect())).qp2p;
+                // let config = Config::new(self.config_file_path, Some(addresses.iter().cloned().collect())).qp2p;
 
                 // Continually try and bootstrap against new elders while we're getting rediret
-                self.bootstrap_and_handshake(config).await?;
+                let _ = self.get_section(Some(&addresses)).await?;
 
                 Ok(())
             }

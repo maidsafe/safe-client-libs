@@ -40,7 +40,7 @@ use log::{debug, info, trace, warn};
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, ReplicaPublicKeySet, Token};
 use sn_messaging::{
-    client::{Cmd, DataCmd, Message, MessageId, Query, QueryResponse},
+    client::{Cmd, DataCmd, Message, Query, QueryResponse},
     MessageId,
 };
 use std::{
@@ -51,7 +51,7 @@ use std::{
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use xor_name::XorName;
-
+use std::iter::FromIterator;
 /// Elder size
 pub const ELDER_SIZE: usize = 5;
 
@@ -289,35 +289,35 @@ impl Client {
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
 pub async fn attempt_bootstrap(
     keypair: Keypair,
-    config_file_path: Option<&'static Path>,
+    config_file_path: Option<&Path>,
     bootstrap_config: Option<HashSet<SocketAddr>>,
     notification_sender: UnboundedSender<Error>,
 ) -> Result<(ConnectionManager, ReplicaPublicKeySet), Error> {
-    let mut attempts: u32 = 0;
     let qp2p_config = Config::new(config_file_path, bootstrap_config.clone()).qp2p;
+    
+    let mut addresses: Option<&Vec<SocketAddr>> = None;
+    let mut address_vec: Vec<SocketAddr> = vec![];
+
+    if let Some(bootstrap) = bootstrap_config {
+       for a in bootstrap {
+            address_vec.push(a)
+       }
+       addresses = Some(&address_vec);
+
+    }
+
     let mut connection_manager = ConnectionManager::new(
-        // qp2p_config.clone(),
-        config_file_path,
-        bootstrap_config.clone(),
+        qp2p_config.clone(),
+        // config_file_path,
+        // bootstrap_config.clone(),
         keypair.clone(),
         notification_sender.clone(),
     )
     .await?;
 
-    loop {
-        let res = connection_manager.bootstrap(qp2p_config.clone()).await;
-        match res {
-            Ok(pk_set) => return Ok((connection_manager, pk_set)),
-            Err(err) => {
-                attempts += 1;
-                if attempts < 3 {
-                    trace!("Error connecting to network! Retrying... ({})", attempts);
-                } else {
-                    return Err(err);
-                }
-            }
-        }
-    }
+    let (connection_manager, pk_set) = connection_manager.retry_bootstrap(addresses).await?;
+
+   Ok((connection_manager, pk_set))
 }
 
 #[cfg(test)]
