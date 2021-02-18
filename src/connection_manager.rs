@@ -35,7 +35,7 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    sync::mpsc::{channel, Sender, UnboundedSender},
+    sync::mpsc::{channel, Sender, UnboundedSender, Receiver},
     task::JoinHandle,
     time::timeout,
 };
@@ -53,57 +53,59 @@ type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
 type ElderConnectionMap = HashSet<SocketAddr>;
-
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
 #[derive(Clone)]
 pub struct ConnectionManager {
     keypair: Keypair,
     qp2p: QuicP2p,
-    elders: ElderConnectionMap,
-    endpoint: Option<Endpoint>,
+    elders: Arc<Mutex<ElderConnectionMap>>,
+    endpoint: Arc<Mutex<Option<Endpoint>>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
     pending_query_responses: Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>,
-    notification_sender: UnboundedSender<Error>,
+    notification_sender: Arc<Mutex<UnboundedSender<Error>>>,
+    
     // receive the pk set when calling bootstrap func
-    key_set_sender: Option<Sender<Result<ReplicaPublicKeySet, Error>>>,
-    // config_file_path: Option<&'static Path>,
+    keyset_sender: Arc<Mutex<Sender<Result<ReplicaPublicKeySet, Error>>>>,
+    keyset_receiver: Arc<Mutex<Receiver<Result<ReplicaPublicKeySet, Error>>>>,
 }
 
 impl ConnectionManager {
     /// Create a new connection manager.
     pub async fn new(
         config: QuicP2pConfig,
-        // config_file_path: Option<&'static Path>,
-        // bootstrap_config: Option<HashSet<SocketAddr>>,
         keypair: Keypair,
         notification_sender: UnboundedSender<Error>,
     ) -> Result<Self, Error> {
-        // let mut config = Config::new(config_file_path, bootstrap_config).qp2p;
 
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
+        let (sender, receiver) = channel::<Result<ReplicaPublicKeySet, Error>>(1);
 
         Ok(Self {
             keypair,
             qp2p,
-            elders: HashSet::default(),
-            endpoint: None,
+            elders: Arc::new(Mutex::new(HashSet::default())),
+            endpoint: Arc::new(Mutex::new(None)),
             pending_transfer_validations: Arc::new(Mutex::new(HashMap::default())),
             pending_query_responses: Arc::new(Mutex::new(HashMap::default())),
-            notification_sender,
+            notification_sender: Arc::new(Mutex::new(notification_sender)),
             // config_file_path,
-            key_set_sender: None,
+            keyset_sender:Arc::new(Mutex::new(sender)),
+            keyset_receiver:Arc::new(Mutex::new(receiver)),
         })
     }
 
     /// Loop bootstrap attempts up to three times
-    pub async fn retry_bootstrap(mut self, bootstrap_config: &Vec<SocketAddr> ) -> Result<(Self, ReplicaPublicKeySet), Error> {
+    pub async fn retry_bootstrap(self, bootstrap_config: &Vec<SocketAddr> ) -> Result<(Self, ReplicaPublicKeySet), Error> {
         let mut attempts: u32 = 0;
 
         loop {
+            trace!("bootstrap attempt, {:?}", attempts);
             let res = self.clone().bootstrap(bootstrap_config).await;
             match res {
-                Ok(pk_set) => return Ok((self, pk_set)),
+                Ok(pk_set) => {
+                    return Ok((self, pk_set))
+                },
                 Err(err) => {
                     attempts += 1;
                     if attempts < 3 {
@@ -114,11 +116,12 @@ impl ConnectionManager {
                 }
             }
         }
+
     }
 
     /// Bootstrap to the network maintaining connections to several nodes.
     pub async fn bootstrap(
-        mut self,
+        &self,
         // qp2p_config: QuicP2pConfig,
         bootstrap_config: &Vec<SocketAddr>,
     ) -> Result<ReplicaPublicKeySet, Error> {
@@ -127,24 +130,14 @@ impl ConnectionManager {
             self.keypair.public_key()
         );
 
-        // bootstrap qp2p
-        // let (
-        //     endpoint,
-        //     _incoming_connections,
-        //     incoming_messages,
-        //     _disconnections,
-        //     bootstrapped_peer,
-        // ) = self.qp2p.bootstrap().await?;
-        // self.endpoint = Some(endpoint);
-
         // Bootstrap and send a handshake request to receive
         // the list of Elders we can then connect to
         let incoming_messages = self.get_section(bootstrap_config).await?;
         
         
-        let (sender, mut receiver) = channel::<Result<ReplicaPublicKeySet, Error>>(1);
-        self.key_set_sender = Some(sender);
-        self.listen_to_incoming_messages(incoming_messages).await;
+        let mut receiver = self.keyset_receiver.lock().await;
+
+        let handle = self.listen_to_incoming_messages(incoming_messages).await;
 
         // wait on our section PK set to be received before progressing
         if let Some(res) = receiver.next().await {
@@ -152,6 +145,7 @@ impl ConnectionManager {
 
             Ok(pk_set)
         } else {
+            debug!("--->>>> in boot");
             Err(Error::NotBootstrapped)
         }
     }
@@ -159,8 +153,9 @@ impl ConnectionManager {
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_cmd(&mut self, msg: &Message) -> Result<(), Error> {
         let msg_id = msg.id();
+        debug!("--->>>> in send_cmd");
 
-        let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+        let endpoint = self.endpoint.lock().await.clone().ok_or(Error::NotBootstrapped)?;
         let src_addr = endpoint.socket_addr();
         trace!(
             "Sending (from {}) command message {:?} w/ id: {:?}",
@@ -173,11 +168,12 @@ impl ConnectionManager {
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
 
-        let elders_addrs: Vec<SocketAddr> = self.elders.iter().cloned().collect();
+        let elders = self.elders.lock().await;
+        let elders_addrs: Vec<SocketAddr> = elders.iter().cloned().collect();
         // clone elders as we want to update them in this process
         for socket in elders_addrs {
             let msg_bytes_clone = msg_bytes.clone();
-            let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+            let endpoint = endpoint.clone();
             let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
                 trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
                 endpoint.connect_to(&socket).await?;
@@ -242,11 +238,13 @@ impl ConnectionManager {
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
-        for socket in self.elders.iter() {
+        let elders = self.elders.lock().await;
+
+        for socket in elders.iter() {
             let msg_bytes_clone = msg_bytes.clone();
             let socket = *socket;
 
-            let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+            let endpoint = self.endpoint.lock().await.clone().ok_or(Error::NotBootstrapped)?;
 
             let task_handle = tokio::spawn(async move {
                 endpoint.connect_to(&socket).await?;
@@ -274,8 +272,8 @@ impl ConnectionManager {
         // We send the same message to all Elders concurrently,
         // and we try to find a majority on the responses
         let mut tasks = Vec::default();
-
-        let elders_addrs: Vec<SocketAddr> = self.elders.iter().cloned().collect();
+        let elders = self.elders.lock().await;
+        let elders_addrs: Vec<SocketAddr> = elders.iter().cloned().collect();
         for socket in elders_addrs {
             let msg_bytes_clone = msg_bytes.clone();
             // Create a new stream here to not have to worry about filtering replies
@@ -283,7 +281,7 @@ impl ConnectionManager {
 
             let pending_query_responses = self.pending_query_responses.clone();
 
-            let mut endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+            let mut endpoint = self.endpoint.lock().await.clone().ok_or(Error::NotBootstrapped)?;
             endpoint.connect_to(&socket).await?;
 
             let task_handle = tokio::spawn(async move {
@@ -362,7 +360,9 @@ impl ConnectionManager {
         let mut received_errors = 0;
 
         // 2/3 of known elders
-        let threshold: usize = (self.elders.len() as f32 / 2_f32).ceil() as usize;
+        let elders = self.elders.lock().await;
+
+        let threshold: usize = (elders.len() as f32 / 2_f32).ceil() as usize;
 
         trace!("Vote threshold is: {:?}", threshold);
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
@@ -495,50 +495,48 @@ impl ConnectionManager {
 
     // Bootstrap to the network to obtaining the list of
     // nodes we should establish connections with
-    async fn get_section(&mut self, bootstrap_nodes_override: &Vec<SocketAddr>) -> Result<IncomingMessages, Error> {
-        info!("Sending Infrastructure::GetSectionRequest");
+    async fn get_section(&self, bootstrap_nodes_override: &Vec<SocketAddr>) -> Result<IncomingMessages, Error> {
+        info!("Sending NetworkInfo::GetSectionRequest");
 
-        // let qp2p = QuicP2p::with_config(Some(qp2p_config), Default::default(), false)?;
-        // overwrite our qp2p instance with out new bootstrapped one
-        // self.qp2p = qp2p;
+        trace!("override nodes: {:?}", bootstrap_nodes_override);
 
         let (
-            endpoint,
+            the_endpoint,
             _incoming_connections,
             incoming_messages,
             _disconnections,
             bootstrapped_peer,
         ) = self.qp2p.bootstrap(bootstrap_nodes_override).await?;
-        self.endpoint = Some(endpoint);
 
         // 1. We query the network for section info.
         trace!("Sending handshake request to bootstrapped node...");
         let public_key = self.keypair.public_key();
         let xorname = XorName::from(public_key);
         let msg = NetworkInfoMsg::GetSectionQuery(xorname).serialize()?;
-
-        let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
-        endpoint.send_message(msg, &bootstrapped_peer).await?;
-
+        
+        // TODO: we shouldnt need to grab this again
+        the_endpoint.send_message(msg, &bootstrapped_peer).await?;
+        let mut endpoint = self.endpoint.lock().await;
+        *endpoint = Some(the_endpoint);
+        
+        trace!("get section done");
         Ok(incoming_messages)
     }
 
-    pub fn number_of_connected_elders(&self) -> usize {
-        self.elders.len()
+    pub async fn number_of_connected_elders(&self) -> usize {
+        let elders = self.elders.lock().await;
+
+        elders.len()
     }
 
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
-    async fn connect_to_elders(
-        &mut self,
-        elders_addrs: Vec<SocketAddr>,
-        incoming_messages: &mut IncomingMessages,
-    ) -> Result<(), Error> {
+    async fn connect_to_elders(&self, elders_addrs: Vec<SocketAddr>) -> Result<(), Error> {
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
 
-        let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+        let endpoint = self.endpoint.lock().await.clone().ok_or(Error::NotBootstrapped)?;
         let socketaddr_sig = self
             .keypair
             .sign(&serialize(&endpoint.borrow().socket_addr())?);
@@ -574,11 +572,14 @@ impl ConnectionManager {
             tasks.push(task_handle);
         }
 
+        trace!("Connection threads have been setup.");
+
         // TODO: Do we need a timeout here to check sufficient time has passed + or sufficient connections?
         let mut has_sufficent_connections = false;
 
         let mut todo = tasks;
 
+        let mut elders = self.elders.lock().await;
         while !has_sufficent_connections {
             if todo.is_empty() {
                 warn!("No more elder connections to try");
@@ -601,82 +602,85 @@ impl ConnectionManager {
 
                 if let Ok(socket_addr) = res {
                     info!("Connected to elder: {:?}", socket_addr);
-                    let _ = self.elders.insert(socket_addr);
+                    let _ = elders.insert(socket_addr);
                 }
             }
 
             // TODO: this will effectively stop driving futures after we get 2...
             // We should still let all progress... just without blocking
-            if self.elders.len() >= STANDARD_ELDERS_COUNT {
+            if elders.len() >= STANDARD_ELDERS_COUNT {
                 has_sufficent_connections = true;
             }
 
-            if self.elders.len() < STANDARD_ELDERS_COUNT {
-                warn!("Connected to only {:?} elders.", self.elders.len());
+            if elders.len() < STANDARD_ELDERS_COUNT {
+                warn!("Connected to only {:?} elders.", elders.len());
             }
 
-            if self.elders.len() < STANDARD_ELDERS_COUNT - 2 && has_sufficent_connections {
+            if elders.len() < STANDARD_ELDERS_COUNT - 2 && has_sufficent_connections {
                 return Err(Error::InsufficientElderConnections);
             }
         }
 
-        trace!("Connected to {} Elders.", self.elders.len());
-
-        if let Some((_src, message)) = incoming_messages.next().await {
-            match NetworkInfoMsg::from(message) {
-                Ok(NetworkInfoMsg::BootstrapError(e)) => {
-                    trace!(
-                        "NetworkInfoMsg::BootstrapError({:?}), trying with provided elders",
-                        e
-                    );
-                    return Err(Error::NotBootstrapped);
-                }
-                Err(e) => return Err(e.into()),
-                Ok(msg) => trace!("NetworkInfoMsg::({:?})", msg),
-            }
-        }
-
+        trace!("Connected to {} Elders.", elders.len());
         Ok(())
     }
 
     /// Listen for incoming messages on a connection
     pub async fn listen_to_incoming_messages(
-        mut self,
+        &self,
         mut incoming_messages: IncomingMessages,
-    ) -> Result<(), Error> {
+    ) -> JoinHandle<Result<(), Error>> {
         debug!("Adding IncomingMessages listener");
-
+        
+        let cm = self.clone();
         // Spawn a thread for listening
         tokio::spawn(async move {
             trace!("Listener thread spawned");
 
             while let Some((src, message)) = incoming_messages.next().await {
-                let message_type = WireMsg::deserialize(message)?;
+                debug!("MESSAGE {:?}", message);
+                 match WireMsg::deserialize(message) {
+                    Ok(message_type) => {
+                        match message_type {
+                            MessageType::NetworkInfo(msg) => {
+                                debug!("SHOULD HANDLE INFRA");
+                                match cm.handle_infrastructure_msg(msg).await {
+                                    Ok(_) => {
+                                        //do nothing
+                                    },
+                                    Err(error) => {
+                                        error!("Error handling infra msg {:?}", error);
+                                    }
+                                }
+                            }
+                            MessageType::ClientMessage(envelope) => {
+                                debug!("SHOULD HANDLE CLIENT");
+        
+                                cm.handle_client_msg(envelope, src).await;
+                            }
+                            msg_type => {
+                                info!("Unexpected message type received: {:?}", msg_type);
+                            }
+                        }
+
+                    },
+                    Err(error) => {
+                        error!("Error deserialzing message {:?}", error);
+                        // do nothing else
+                    }
+                };
+
                 trace!("Message received at listener from {:?}", &src);
 
-                match message_type {
-                    MessageType::NetworkInfo(msg) => {
-                        self.handle_infrastructure_msg(msg).await?
-                    }
-                    MessageType::ClientMessage(envelope) => {
-                        self.handle_client_msg(envelope, src).await;
-                    }
-                    msg_type => {
-                        info!("Unexpected message type received: {:?}", msg_type);
-                    }
-                }
             }
             info!("IncomingMessages listener is closing now");
             Ok::<(), Error>(())
-        });
-
-        Ok(())
+        })
     }
 
     /// Handle received infrastructure messages
-    async fn handle_infrastructure_msg(&mut self, msg: NetworkInfoMsg) -> Result<(), Error> {
+    async fn handle_infrastructure_msg(&self, msg: NetworkInfoMsg) -> Result<(), Error> {
         match msg {
-
             NetworkInfoMsg::GetSectionResponse(GetSectionResponse::SectionNetworkInfoUpdate(error)) => {
                 self.handle_infrastructure_info_update(error).await
             }
@@ -684,11 +688,9 @@ impl ConnectionManager {
                 addresses,
             )) => {
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
-                // let config = Config::new(self.config_file_path, Some(addresses.iter().cloned().collect())).qp2p;
-
                 // Continually try and bootstrap against new elders while we're getting rediret
-                let _ = self.get_section(&addresses).await?;
-
+                self.get_section(&addresses).await?;
+                
                 Ok(())
             }
             NetworkInfoMsg::GetSectionResponse(GetSectionResponse::Success(infra_info)) => {
@@ -700,19 +702,23 @@ impl ConnectionManager {
             NetworkInfoMsg::NetworkInfoUpdate(update) => {
                 let correlation_id = update.correlation_id;
                 error!("MessageId {:?} was interrupted due to infrastructure updates. This will most likely need to be sent again.", correlation_id);
-                if let Err(error) =  self.notification_sender.send(Error::NetworkInfoUpdateMayHaveAffectedMsg(correlation_id)) {
-                   error!("Error notifying via sender. {:?}", error);
+                if let Err(error) =  self.notification_sender.lock().await.send(Error::NetworkInfoUpdateMayHaveAffectedMsg(correlation_id)) {
+                    error!("Error notifying via sender. {:?}", error);
                 }
                 let error = update.error;
                 self.handle_infrastructure_info_update(error).await
-
+                
+            }
+            _ => {
+                error!("Another infrastructure message type came in {:?}", msg);
+                Ok(())
             }
         }
     }
 
     /// Handle infrastructure udpate if possible
     async fn handle_infrastructure_info_update(
-        &mut self,
+        &self,
         update: InfrastructureUpdate,
     ) -> Result<(), Error> {
         match update {
@@ -731,7 +737,7 @@ impl ConnectionManager {
 
     /// update the client's elder connection information and trigger connections to those elders
     async fn update_infrastructure_information(
-        &mut self,
+        &self,
         info: NetworkInfo,
     ) -> Result<(), Error> {
         let elders = info.elders;
@@ -745,17 +751,18 @@ impl ConnectionManager {
             .collect();
 
         // if we're waiting for inital PK set on bootstrap
-        if let Some(mut sender) = self.key_set_sender.clone() {
+        
+        let mut sender = self.keyset_sender.lock().await;
             sender
                 .send(Ok(pk_set))
                 .await
                 .map_err(|_| Error::CouldNotSaveReplicaPkSet)?;
-            // let's wipe that
-            self.key_set_sender = None;
-        }
 
         // clear existing elder lsit.
-        self.elders = Default::default();
+        let mut elders = self.elders.lock().await;
+        for elder in elders.clone().into_iter() {
+            elders.remove(&elder);
+        }
         self.connect_to_elders(elders_addrs).await
     }
 
@@ -822,7 +829,7 @@ impl ConnectionManager {
                     warn!("No sender subscribing and listening for errors relating to message {:?}. Error returned is: {:?}", correlation_id, error)
                 }
 
-                let _ = notifier.send(Error::from(error));
+                let _ = notifier.lock().await.send(Error::from(error));
             }
             msg => {
                 warn!("another message type received {:?}", msg);

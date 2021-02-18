@@ -305,7 +305,7 @@ pub async fn attempt_bootstrap(
 
     }
 
-    let mut connection_manager = ConnectionManager::new(
+    let connection_manager = ConnectionManager::new(
         qp2p_config.clone(),
         // config_file_path,
         // bootstrap_config.clone(),
