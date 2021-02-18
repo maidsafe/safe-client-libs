@@ -57,6 +57,34 @@ impl Storage for BlobStorage {
         }
     }
 
+    async fn delete(&mut self, name: &[u8]) -> Result<(), SelfEncryptionError> {
+        trace!("Self encrypt invoked DeleteBlob.");
+
+        if name.len() != XOR_NAME_LEN {
+            return Err(SelfEncryptionError::Generic(
+                "Requested `name` is incorrect size.".to_owned(),
+            ));
+        }
+
+        let name = {
+            let mut temp = [0_u8; XOR_NAME_LEN];
+            temp.clone_from_slice(name);
+            XorName(temp)
+        };
+
+        let address = if self.published {
+            // Should raise error though
+            BlobAddress::Public(name)
+        } else {
+            BlobAddress::Private(name)
+        };
+
+        match self.client.delete_blob_from_network(address).await {
+            Ok(_) => Ok(()),
+            Err(error) => Err(SelfEncryptionError::Generic(format!("{}", error))),
+        }
+    }
+
     async fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), SelfEncryptionError> {
         trace!("Self encrypt invoked PutBlob.");
         let blob: Blob = if self.published {
@@ -108,6 +136,12 @@ impl Storage for BlobStorageDryRun {
         trace!("Self encrypt invoked PutBlob dry run.");
         // We do nothing here just return ok so self_encrpytion can finish
         // and generate chunk addresses and datamap if required
+        Ok(())
+    }
+
+    async fn delete(&mut self, _name: &[u8]) -> Result<(), SelfEncryptionError> {
+        trace!("Self encrypt invoked DeleteBlob dry run.");
+        
         Ok(())
     }
 

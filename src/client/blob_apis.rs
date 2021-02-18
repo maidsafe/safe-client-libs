@@ -166,6 +166,16 @@ impl Client {
         Ok(data)
     }
 
+    pub(crate) async fn delete_blob_from_network(
+        &self,
+        address: BlobAddress,
+    ) -> Result<(), Error> {
+        let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(address));
+        self.pay_and_send_data_command(cmd).await?;
+
+        Ok(())
+    }
+
     // Private function that actually stores the given blob on the network.
     // Self Encryption is NOT APPLIED ON the blob that is passed to this function.
     // Clients should not call this function directly.
@@ -213,20 +223,19 @@ impl Client {
         info!("Deleting blob at given address: {:?}", address);
 
         let mut data = self.fetch_blob_from_network(address).await?;
+        self.delete_blob_from_network(address).await?;
 
         loop {
             match deserialize(data.value())? {
-                DataMapLevel::Root(_) => {
-                    let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(*data.address()));
-                    self.pay_and_send_data_command(cmd).await?;
+                DataMapLevel::Root(data_map) => {
+                    self.delete_using_data_map(data_map).await?;
                     return Ok(());
                 }
                 DataMapLevel::Child(data_map) => {
                     let serialized_blob = self
-                        .read_using_data_map(data_map, false, None, None)
+                        .read_using_data_map(data_map.clone(), false, None, None)
                         .await?;
-                    let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(*data.address()));
-                    self.pay_and_send_data_command(cmd).await?;
+                    self.delete_using_data_map(data_map).await?;
                     data = deserialize(&serialized_blob)?;
                 }
             }
@@ -295,6 +304,22 @@ impl Client {
             Ok(data) => Ok(data),
             Err(error) => Err(Error::SelfEncryption(error)),
         }
+    }
+
+    async fn delete_using_data_map(
+        &self,
+        data_map: DataMap,
+    ) -> Result<(), Error> {
+        
+        let blob_storage = BlobStorage::new(self.clone(), false);
+        let self_encryptor =
+            SelfEncryptor::new(blob_storage, data_map).map_err(Error::SelfEncryption)?;
+
+        match self_encryptor.delete().await {
+            Ok(_) => Ok(()),
+            Err(error) => Err(Error::SelfEncryption(error)),
+        }
+
     }
 
     /// Takes the "Root data map" and returns a Blob that is acceptable by the network
