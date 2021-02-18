@@ -97,11 +97,11 @@ impl ConnectionManager {
     }
 
     /// Loop bootstrap attempts up to three times
-    pub async fn retry_bootstrap(mut self, bootstrap_config: Option<&Vec<SocketAddr>> ) -> Result<(Self, ReplicaPublicKeySet), Error> {
+    pub async fn retry_bootstrap(mut self, bootstrap_config: &Vec<SocketAddr> ) -> Result<(Self, ReplicaPublicKeySet), Error> {
         let mut attempts: u32 = 0;
 
         loop {
-            let res = self.clone().bootstrap(bootstrap_config.clone()).await;
+            let res = self.clone().bootstrap(bootstrap_config).await;
             match res {
                 Ok(pk_set) => return Ok((self, pk_set)),
                 Err(err) => {
@@ -120,7 +120,7 @@ impl ConnectionManager {
     pub async fn bootstrap(
         mut self,
         // qp2p_config: QuicP2pConfig,
-        bootstrap_config: Option<&Vec<SocketAddr>>,
+        bootstrap_config: &Vec<SocketAddr>,
     ) -> Result<ReplicaPublicKeySet, Error> {
         trace!(
             "Trying to bootstrap to the network with public_key: {:?}",
@@ -495,7 +495,7 @@ impl ConnectionManager {
 
     // Bootstrap to the network to obtaining the list of
     // nodes we should establish connections with
-    async fn get_section(&mut self, bootstrap_nodes_override: Option<&Vec<SocketAddr>>) -> Result<IncomingMessages, Error> {
+    async fn get_section(&mut self, bootstrap_nodes_override: &Vec<SocketAddr>) -> Result<IncomingMessages, Error> {
         info!("Sending Infrastructure::GetSectionRequest");
 
         // let qp2p = QuicP2p::with_config(Some(qp2p_config), Default::default(), false)?;
@@ -687,7 +687,7 @@ impl ConnectionManager {
                 // let config = Config::new(self.config_file_path, Some(addresses.iter().cloned().collect())).qp2p;
 
                 // Continually try and bootstrap against new elders while we're getting rediret
-                let _ = self.get_section(Some(&addresses)).await?;
+                let _ = self.get_section(&addresses).await?;
 
                 Ok(())
             }

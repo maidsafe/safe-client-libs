@@ -295,14 +295,13 @@ pub async fn attempt_bootstrap(
 ) -> Result<(ConnectionManager, ReplicaPublicKeySet), Error> {
     let qp2p_config = Config::new(config_file_path, bootstrap_config.clone()).qp2p;
     
-    let mut addresses: Option<&Vec<SocketAddr>> = None;
+    // let mut addresses: &Vec<SocketAddr> = None;
     let mut address_vec: Vec<SocketAddr> = vec![];
 
     if let Some(bootstrap) = bootstrap_config {
        for a in bootstrap {
             address_vec.push(a)
        }
-       addresses = Some(&address_vec);
 
     }
 
@@ -315,7 +314,7 @@ pub async fn attempt_bootstrap(
     )
     .await?;
 
-    let (connection_manager, pk_set) = connection_manager.retry_bootstrap(addresses).await?;
+    let (connection_manager, pk_set) = connection_manager.retry_bootstrap(&address_vec).await?;
 
    Ok((connection_manager, pk_set))
 }
