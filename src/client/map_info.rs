@@ -14,7 +14,7 @@ use crate::utils::{
 use serde::{Deserialize, Serialize};
 use sn_data_types::{MapAddress, MapKind, MapSeqEntries, MapSeqEntryAction, MapSeqValue};
 use std::collections::{BTreeMap, BTreeSet};
-use tiny_keccak::sha3_256;
+use tiny_keccak::{Hasher, Sha3};
 use xor_name::XorName;
 
 /// Information allowing to locate and access mutable data on the network.
@@ -242,7 +242,10 @@ fn decrypt_value(info: &MapInfo, value: &MapSeqValue) -> Result<MapSeqValue, Err
 fn enc_entry_key(plain_text: &[u8], key: &SymEncKey, seed: SymEncNonce) -> Result<Vec<u8>, Error> {
     let mut pt = plain_text.to_vec();
     pt.extend_from_slice(&seed[..]);
-    let hash = sha3_256(&pt);
+    let mut hash = [0; 32];
+    let mut hasher = Sha3::v256();
+    hasher.update(&pt);
+    hasher.finalize(&mut hash);
 
     let mut nonce = SymEncNonce::default();
     nonce.copy_from_slice(&hash[..SYM_ENC_NONCE_LEN]);

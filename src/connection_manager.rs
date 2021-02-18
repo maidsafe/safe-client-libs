@@ -26,6 +26,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tiny_keccak::{Hasher, Sha3};
 use tokio::{
     sync::mpsc::{channel, Sender, UnboundedSender},
     task::JoinHandle,
@@ -327,7 +328,11 @@ impl ConnectionManager {
 
                         // bincode here as we're using the internal qr, without serialisation
                         // this is only used internally to sn_client
-                        let key = tiny_keccak::sha3_256(&serialize(&response)?);
+                        let mut key = [0; 32];
+                        let mut hasher = Sha3::v256();
+                        hasher.update(&serialize(&response)?);
+                        hasher.finalize(&mut key);
+
                         let (_, counter) = vote_map.entry(key).or_insert((response.clone(), 0));
                         *counter += 1;
 

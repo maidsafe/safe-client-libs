@@ -15,35 +15,34 @@ keywords = [ "Safe", "Network", "SafeNetwork" ]
 features = [ "simulated-payouts" ]
 
 [dependencies]
-anyhow = "1.0.36"
-async-trait = "~0.1.41"
-bincode = "1.2.1"
+anyhow = "1.0.38"
+async-trait = "~0.1.42"
+bincode = "1.3.1"
 crdts = "~4.3.0"
-dirs-next = "1.0.1"
-futures = "~0.3.5"
-futures-util = "~0.3.4"
-log = "~0.4.8"
-qp2p = "~0.9.17"
+dirs-next = "2.0.0"
+futures = "~0.3.12"
+futures-util = "~0.3.12"
+log = "~0.4.14"
+qp2p = "~0.9.19"
 rand = "~0.7.3"
-regex = "1.3.1"
-rmp-serde = "~0.15.1"
-self_encryption = "~0.19.4"
-serde_json = "1.0.53"
-sn_data_types = "~0.14.0"
+regex = "1.4.3"
+rmp-serde = "~0.15.4"
+self_encryption = "~0.19.11"
+serde_json = "1.0.62"
+sn_data_types = "~0.14.6"
 sn_messaging = "3.0.0"
 sn_transfers = "~0.3.0"
 thiserror = "1.0.23"
 threshold_crypto = "0.4.0"
-tiny-keccak = "1.5.0"
-url = "2.1.0"
-xor_name = "1.1.3"
+url = "2.2.0"
+xor_name = "1.1.10"
 
   [dependencies.bytes]
   version = "1.0.1"
   features = [ "serde" ]
 
   [dependencies.chrono]
-  version = "~0.4.0"
+  version = "~0.4.19"
   features = [ "serde" ]
 
   [dependencies.miscreant]
@@ -51,15 +50,19 @@ xor_name = "1.1.3"
   features = [ "soft-aes" ]
 
   [dependencies.serde]
-  version = "1.0.111"
+  version = "1.0.123"
   features = [ "derive", "rc" ]
 
+  [dependencies.tiny-keccak]
+  version = "2.0.2"
+  features = [ "sha3" ]
+
   [dependencies.tokio]
-  version = "~0.2.21"
+  version = "~0.2.25"
   features = [ "rt-core", "rt-threaded", "blocking", "stream", "rt-util" ]
 
 [dev-dependencies]
-serde_json = "1.0.9"
+serde_json = "1.0.62"
 tracing-subscriber = "~0.2.15"
 
 [features]
