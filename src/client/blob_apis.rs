@@ -166,10 +166,7 @@ impl Client {
         Ok(data)
     }
 
-    pub(crate) async fn delete_blob_from_network(
-        &self,
-        address: BlobAddress,
-    ) -> Result<(), Error> {
+    pub(crate) async fn delete_blob_from_network(&self, address: BlobAddress) -> Result<(), Error> {
         let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(address));
         self.pay_and_send_data_command(cmd).await?;
 
@@ -306,11 +303,7 @@ impl Client {
         }
     }
 
-    async fn delete_using_data_map(
-        &self,
-        data_map: DataMap,
-    ) -> Result<(), Error> {
-        
+    async fn delete_using_data_map(&self, data_map: DataMap) -> Result<(), Error> {
         let blob_storage = BlobStorage::new(self.clone(), false);
         let self_encryptor =
             SelfEncryptor::new(blob_storage, data_map).map_err(Error::SelfEncryption)?;
@@ -319,7 +312,6 @@ impl Client {
             Ok(_) => Ok(()),
             Err(error) => Err(Error::SelfEncryption(error)),
         }
-
     }
 
     /// Takes the "Root data map" and returns a Blob that is acceptable by the network
@@ -367,11 +359,14 @@ impl Client {
 }
 #[cfg(test)]
 mod tests {
-    use super::{Blob, BlobAddress, Error};
+    use super::{Blob, BlobAddress, DataMap, DataMapLevel, Error};
+    use crate::client::blob_storage::BlobStorage;
     use crate::utils::{
         generate_random_vector, test_utils::create_test_client, test_utils::gen_ed_keypair,
     };
     use anyhow::{bail, Result};
+    use bincode::deserialize;
+    use self_encryption::Storage;
     use sn_data_types::{PrivateBlob, PublicBlob, Token};
     use sn_messaging::client::Error as ErrorMessage;
     use std::str::FromStr;
@@ -491,6 +486,72 @@ mod tests {
         // Test putting unpub blob with the same value again. Should not conflict.
         let _ = client.store_private_blob(&value).await?;
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn unpub_delete_large() -> Result<()> {
+        let client = create_test_client().await?;
+
+        let value = generate_random_vector::<u8>(1024 * 1024);
+        let address = client.store_private_blob(&value).await?;
+
+        let mut res = client.fetch_blob_from_network(address).await;
+        while res.is_err() {
+            delay_for(Duration::from_millis(200)).await;
+
+            res = client.fetch_blob_from_network(address).await;
+        }
+
+        let child_data_map;
+        match deserialize(res?.value())? {
+            DataMapLevel::Root(_) => {
+                panic!("Shouldn't be a root level data map");
+            }
+            DataMapLevel::Child(data_map) => {
+                child_data_map = data_map;
+            }
+        };
+
+        let root = client
+            .read_using_data_map(child_data_map.clone(), false, None, None)
+            .await?;
+
+        let root_data_map;
+        match deserialize(&root)? {
+            DataMapLevel::Root(data_map) => {
+                root_data_map = data_map;
+            }
+            DataMapLevel::Child(_) => {
+                panic!("Should be a root level data map");
+            }
+        };
+
+        client.delete_blob(address).await?;
+
+        let mut blob_storage = BlobStorage::new(client, false);
+
+        match &root_data_map {
+            DataMap::Chunks(chunks) => {
+                for chunk in chunks {
+                    if blob_storage.get(&chunk.hash).await.is_ok() {
+                        panic!("this chunk should have been deleted")
+                    }
+                }
+            }
+            DataMap::None | DataMap::Content(_) => panic!("shall return DataMap::Chunks"),
+        }
+
+        match &child_data_map {
+            DataMap::Chunks(chunks) => {
+                for chunk in chunks {
+                    if blob_storage.get(&chunk.hash).await.is_ok() {
+                        panic!("this chunk should have been deleted")
+                    }
+                }
+            }
+            DataMap::None | DataMap::Content(_) => panic!("shall return DataMap::Chunks"),
+        }
         Ok(())
     }
 

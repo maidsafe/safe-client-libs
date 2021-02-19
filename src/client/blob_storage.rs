@@ -141,7 +141,7 @@ impl Storage for BlobStorageDryRun {
 
     async fn delete(&mut self, _name: &[u8]) -> Result<(), SelfEncryptionError> {
         trace!("Self encrypt invoked DeleteBlob dry run.");
-        
+
         Ok(())
     }
 
