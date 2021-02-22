@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.47.0](https://github.com/maidsafe/sn_client/compare/v0.46.14...v0.47.0) (2021-02-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** updated sn_messaging version
+
+### Features
+
+* **bootstrap:** update for changes to bootstrap flow ([5af7cbe](https://github.com/maidsafe/sn_client/commit/5af7cbe255722dd7ddcf1a7f7334e317aa7c03d6))
+* us our section pk when messaging ([c917b10](https://github.com/maidsafe/sn_client/commit/c917b108733c5765e520f6370ce4f336e8ae7ef2))
+
+
+### Bug Fixes
+
+* set response elected flag after electing best of the rest ([27726ee](https://github.com/maidsafe/sn_client/commit/27726eeb063500b48116d680659434429771045d))
+* **connection_manager:** remove incorrect cloning of session ([67060d1](https://github.com/maidsafe/sn_client/commit/67060d1cb3d67f53d7d3653328ee3acd954deea0))
+* clippy ([d060aac](https://github.com/maidsafe/sn_client/commit/d060aac99ab1e4d209e43f5d3f67f2c3b4883aa3))
+* double serialization bug ([7ef69a6](https://github.com/maidsafe/sn_client/commit/7ef69a6c224f3a5d25a366f0975acabecf83c662))
+* remove unimplemented for match wildcard ([ea22dc8](https://github.com/maidsafe/sn_client/commit/ea22dc80365abee3e164531e18f40d194b30c0b6))
+* use msg id new fn for random id ([103beb5](https://github.com/maidsafe/sn_client/commit/103beb584fac08d9e58cd638c54206406eabe72a))
+
+
+* **deps:** update sn_transfers, sn_messaging, sn_data_types ([4b5d876](https://github.com/maidsafe/sn_client/commit/4b5d876aea68f6252c100f13c6766ea38e67d2d4))
+
 ### [0.46.14](https://github.com/maidsafe/sn_client/compare/v0.46.13...v0.46.14) (2021-02-22)
 
 ### [0.46.13](https://github.com/maidsafe/sn_client/compare/v0.46.12...v0.46.13) (2021-02-19)
