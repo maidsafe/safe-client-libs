@@ -73,8 +73,9 @@ impl Storage for BlobStorage {
         };
 
         let address = if self.published {
-            // Should raise error though
-            BlobAddress::Public(name)
+            return Err(SelfEncryptionError::Generic(
+                "Cannot delete on a published storage".to_owned(),
+            ));
         } else {
             BlobAddress::Private(name)
         };
