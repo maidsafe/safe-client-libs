@@ -503,28 +503,8 @@ mod tests {
             res = client.fetch_blob_from_network(address).await;
         }
 
-        let child_data_map;
-        match deserialize(res?.value())? {
-            DataMapLevel::Root(_) => {
-                panic!("Shouldn't be a root level data map");
-            }
-            DataMapLevel::Child(data_map) => {
-                child_data_map = data_map;
-            }
-        };
-
-        let root = client
-            .read_using_data_map(child_data_map.clone(), false, None, None)
-            .await?;
-
-        let root_data_map;
-        match deserialize(&root)? {
-            DataMapLevel::Root(data_map) => {
-                root_data_map = data_map;
-            }
-            DataMapLevel::Child(_) => {
-                panic!("Should be a root level data map");
-            }
+        let root_data_map = match deserialize(res?.value())? {
+            DataMapLevel::Root(data_map) | DataMapLevel::Child(data_map) => data_map,
         };
 
         client.delete_blob(address).await?;
@@ -535,23 +515,13 @@ mod tests {
             DataMap::Chunks(chunks) => {
                 for chunk in chunks {
                     if blob_storage.get(&chunk.hash).await.is_ok() {
-                        panic!("this chunk should have been deleted")
+                        bail!("this chunk should have been deleted")
                     }
                 }
             }
-            DataMap::None | DataMap::Content(_) => panic!("shall return DataMap::Chunks"),
+            DataMap::None | DataMap::Content(_) => bail!("shall return DataMap::Chunks"),
         }
 
-        match &child_data_map {
-            DataMap::Chunks(chunks) => {
-                for chunk in chunks {
-                    if blob_storage.get(&chunk.hash).await.is_ok() {
-                        panic!("this chunk should have been deleted")
-                    }
-                }
-            }
-            DataMap::None | DataMap::Content(_) => panic!("shall return DataMap::Chunks"),
-        }
         Ok(())
     }
 
