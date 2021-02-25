@@ -134,13 +134,16 @@ impl Client {
 
         let simulated_farming_payout_dot = Dot::new(random_payment_pk, 0);
 
-        // let _ = Self::get_replica_keys(session.clone()).await?;
-
         let validator = ClientTransferValidator {};
 
         let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(
             keypair.clone(),
-            session.section_key_set().await?.clone(),
+            session
+                .section_key_set
+                .lock()
+                .await
+                .clone()
+                .ok_or(Error::NotBootstrapped)?,
             validator,
         )));
 
@@ -223,7 +226,7 @@ impl Client {
 
         debug!("Sending QueryRequest: {:?}", query);
 
-        let message = self.create_query_message(query)?;
+        let message = self.create_query_message(query).await?;
         let endpoint = self.session.endpoint()?.clone();
         let elders = self.session.elders.iter().cloned().collect();
         let pending_queries = self.session.pending_queries.clone();
@@ -231,11 +234,11 @@ impl Client {
     }
 
     // Build and sign Cmd Message Envelope
-    pub(crate) fn create_cmd_message(&self, msg_contents: Cmd) -> Result<Message, Error> {
+    pub(crate) async fn create_cmd_message(&self, msg_contents: Cmd) -> Result<Message, Error> {
         let id = MessageId::new();
         trace!("Creating cmd message with id: {:?}", id);
 
-        let target_section_pk = Some(self.session.section_key()?);
+        let target_section_pk = Some(self.session.section_key().await?);
 
         Ok(Message::Cmd {
             cmd: msg_contents,
@@ -245,11 +248,11 @@ impl Client {
     }
 
     // Build a Query
-    pub(crate) fn create_query_message(&self, msg_contents: Query) -> Result<Message, Error> {
+    pub(crate) async fn create_query_message(&self, msg_contents: Query) -> Result<Message, Error> {
         let id = MessageId::new();
         trace!("Creating query message with id : {:?}", id);
 
-        let target_section_pk = Some(self.session.section_key()?);
+        let target_section_pk = Some(self.session.section_key().await?);
 
         Ok(Message::Query {
             query: msg_contents,
@@ -269,7 +272,7 @@ impl Client {
             cmd,
             payment: payment_proof.clone(),
         };
-        let message = self.create_cmd_message(msg_contents)?;
+        let message = self.create_cmd_message(msg_contents).await?;
         let endpoint = self.session.endpoint()?.clone();
         let elders = self.session.elders.iter().cloned().collect();
         let _ = ConnectionManager::send_cmd(&message, endpoint, elders).await?;

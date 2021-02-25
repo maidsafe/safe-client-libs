@@ -220,7 +220,7 @@ impl Client {
             cmd,
             payment: payment_proof.clone(),
         };
-        let message = self.create_cmd_message(msg_contents)?;
+        let message = self.create_cmd_message(msg_contents).await?;
         let endpoint = self.session.endpoint()?.clone();
         let elders = self.session.elders.iter().cloned().collect();
 

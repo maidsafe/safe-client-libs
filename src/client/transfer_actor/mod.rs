@@ -142,7 +142,7 @@ impl Client {
             since_version: 0,
         });
 
-        let message = self.create_query_message(msg_contents)?;
+        let message = self.create_query_message(msg_contents).await?;
 
         // This is a normal response manager request. We want quorum on this for now...
         let endpoint = self.session.endpoint()?.clone();
@@ -194,7 +194,7 @@ impl Client {
             bytes,
         });
 
-        let message = self.create_query_message(msg_contents)?;
+        let message = self.create_query_message(msg_contents).await?;
 
         // This is a normal response manager request. We want quorum on this for now...
 
@@ -222,7 +222,7 @@ impl Client {
 
         self.get_history().await?;
 
-        let section_key = self.session.section_key()?;
+        let section_key = self.session.section_key().await?;
 
         let cost_of_put = self.get_store_cost(bytes).await?;
 
@@ -241,7 +241,7 @@ impl Client {
 
         debug!("Transfer to be sent: {:?}", &signed_transfer);
 
-        let transfer_message = self.create_cmd_message(command)?;
+        let transfer_message = self.create_cmd_message(command).await?;
 
         self.transfer_actor
             .lock()

@@ -73,7 +73,7 @@ impl Client {
         let simluated_farming_cmd =
             Cmd::Transfer(TransferCmd::SimulatePayout(simulated_transfer.clone()));
 
-        let message = self.create_cmd_message(simluated_farming_cmd)?;
+        let message = self.create_cmd_message(simluated_farming_cmd).await?;
 
         let endpoint = self.session.endpoint()?.clone();
         let elders = self.session.elders.iter().cloned().collect();

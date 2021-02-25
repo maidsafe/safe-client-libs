@@ -57,36 +57,41 @@ pub struct ConnectionManager {}
 
 impl ConnectionManager {
     /// Bootstrap to the network maintaining connections to several nodes.
-    pub async fn bootstrap(session: Session) -> Result<Session, Error> {
-        // &'static
+    pub async fn bootstrap(mut session: Session) -> Result<Session, Error> {
         trace!(
             "Trying to bootstrap to the network with public_key: {:?}",
             session.client_public_key()
         );
 
+        let (
+            endpoint,
+            _incoming_connections,
+            incoming_messages,
+            _disconnections,
+            bootstrapped_peer,
+        ) = session.qp2p.bootstrap().await?;
+
+        session.endpoint = Some(endpoint.clone());
+
         // Bootstrap and send a handshake request to
-        let (session, mut incoming_messages) = Self::get_section(session).await?;
-        // Receive the list of Elders we can then connect to
-        let session = Self::get_elders(session, &mut incoming_messages).await?;
+        let session = Self::get_section(session, Some(bootstrapped_peer)).await?;
+        let session = session
+            .listen_to_incoming_messages(incoming_messages)
+            .await?;
+
         // Let's now connect to all Elders
         let session = Self::connect_to_elders(session).await?;
 
-        session.listen_to_incoming_messages(incoming_messages).await
-    }
+        let mut we_have_keyset = false;
 
-    async fn get_elders(
-        session: Session,
-        incoming_messages: &mut IncomingMessages,
-    ) -> Result<Session, Error> {
-        if let Some((_src, message)) = incoming_messages.next().await {
-            match SectionInfoMsg::from(message) {
-                Ok(msg) => ConnectionManager::handle_sectioninfo_msg(msg, session).await,
-                Err(e) => Err(e.into()),
-            }
-        } else {
-            trace!("incoming_messages.next().await was None");
-            Err(Error::NotBootstrapped)
+        // bootstrap is not complete until we have pk set...
+        while !we_have_keyset {
+            use tokio::time::{delay_for, Duration};
+            delay_for(Duration::from_millis(500)).await;
+            we_have_keyset = session.section_key_set.lock().await.is_some();
         }
+
+        Ok(session)
     }
 
     /// Send a `Message` to the network without awaiting for a response.
@@ -110,7 +115,6 @@ impl ConnectionManager {
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
 
-        //let elders_addrs: Vec<SocketAddr> = elders.iter().cloned().collect();
         // clone elders as we want to update them in this process
         for socket in elders {
             let msg_bytes_clone = msg_bytes.clone();
@@ -172,7 +176,11 @@ impl ConnectionManager {
         let msg_bytes = msg.serialize()?;
 
         let msg_id = msg.id();
-        let _ = pending_transfers.lock().await.insert(msg_id, sender);
+
+        // block off the lock to avoid long await calls
+        {
+            let _ = pending_transfers.lock().await.insert(msg_id, sender);
+        }
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -422,32 +430,36 @@ impl ConnectionManager {
 
     // Private helpers
 
-    // Bootstrap to the network to obtaining the list of
-    // nodes we should establish connections with
-    async fn get_section(mut session: Session) -> Result<(Session, IncomingMessages), Error> {
-        trace!("Bootstrapping with contacts...");
-        let (
-            endpoint,
-            _incoming_connections,
-            incoming_messages,
-            _disconnections,
-            bootstrapped_peer,
-        ) = session.qp2p.bootstrap().await?;
-        //self.endpoint = Some(endpoint);
+    // Get section info. Optionally from one node (if we've just bootstrapped qp2p eg)
+    // Otherwise we use all session nodes
+    async fn get_section(
+        mut session: Session,
+        initial_peer: Option<SocketAddr>,
+    ) -> Result<Session, Error> {
+        let elders: Vec<SocketAddr> = session.elders.clone().into_iter().collect();
+        trace!("Bootstrapping with contacts... {:?}", elders);
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
         let msg = SectionInfoMsg::GetSectionQuery(XorName::from(session.client_public_key()))
             .serialize()?;
 
-        session.endpoint = Some(endpoint);
+        if let Some(bootstrapped_peer) = initial_peer {
+            session
+                .endpoint()?
+                .send_message(msg, &bootstrapped_peer)
+                .await?;
+        } else {
+            debug!("connecting to session elders");
+            for socket in elders.clone() {
+                let msg = msg.clone();
+                let endpoint = session.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+                endpoint.connect_to(&socket).await?;
+                endpoint.send_message(msg, &socket).await?
+            }
+        }
 
-        session
-            .endpoint()?
-            .send_message(msg, &bootstrapped_peer)
-            .await?;
-
-        Ok((session, incoming_messages))
+        Ok(session)
     }
 
     // Connect to a set of Elders nodes which will be
@@ -547,10 +559,9 @@ impl ConnectionManager {
         msg: SectionInfoMsg,
         mut session: Session,
     ) -> Result<Session, Error> {
-        debug!("Handling network info message");
+        trace!("Handling network info message {:?}", msg);
         match &msg {
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Success(info)) => {
-                trace!("GetSectionResponse Success! Elders: ({:?})", info.elders);
                 ConnectionManager::update_session_info(session, info).await
             }
             SectionInfoMsg::RegisterEndUserError(error)
@@ -565,8 +576,9 @@ impl ConnectionManager {
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(addresses)) => {
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
                 session.elders = addresses.iter().copied().collect();
+
                 // Continually try and bootstrap against new elders while we're getting rediret
-                let (session, _) = Self::get_section(session).await?;
+                let session = Self::get_section(session, None).await?;
                 Ok(session)
             }
             SectionInfoMsg::SectionInfoUpdate(update) => {
@@ -592,8 +604,9 @@ impl ConnectionManager {
         mut session: Session,
         info: &SectionInfo,
     ) -> Result<Session, Error> {
+        let original_elders = session.elders;
         let elders = &info.elders;
-        session.section_key_set = Some(info.pk_set.clone());
+
         trace!("GetSectionResponse Success! Elders: ({:?})", elders);
         // Obtain the addresses of the Elders
         let elders_addrs = elders
@@ -601,9 +614,21 @@ impl ConnectionManager {
             .map(|(_, socket_addr)| socket_addr)
             .copied()
             .collect();
+
+        {
+            let mut keyset = session.section_key_set.lock().await;
+            *keyset = Some(info.pk_set.clone());
+        }
+
         // clear existing elder list.
         session.elders = elders_addrs;
-        Self::connect_to_elders(session).await
+
+        if original_elders != session.elders {
+            debug!("There are new elders to connect to!");
+            Self::connect_to_elders(session).await
+        } else {
+            Ok(session)
+        }
     }
 
     /// Handle messages intended for client consumption (re: queries + commands)
@@ -688,7 +713,7 @@ pub struct Session {
     pub pending_transfers: PendingTransferValidations,
     pub endpoint: Option<Endpoint>,
     pub elders: HashSet<SocketAddr>,
-    pub section_key_set: Option<PublicKeySet>,
+    pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
     pub signer: Signer,
 }
 
@@ -707,7 +732,7 @@ impl Session {
             pending_queries: Arc::new(Mutex::new(HashMap::default())),
             pending_transfers: Arc::new(Mutex::new(HashMap::default())),
             endpoint: None,
-            section_key_set: None,
+            section_key_set: Arc::new(Mutex::new(None)),
             elders: HashSet::default(),
             signer,
         })
@@ -727,19 +752,11 @@ impl Session {
         }
     }
 
-    pub fn section_key(&self) -> Result<PublicKey, Error> {
-        match self.section_key_set.borrow() {
-            Some(section_key_set) => Ok(PublicKey::Bls(section_key_set.public_key())),
-            None => {
-                trace!("self.section_key_set.borrow() was None");
-                Err(Error::NotBootstrapped)
-            }
-        }
-    }
+    pub async fn section_key(&self) -> Result<PublicKey, Error> {
+        let keys = self.section_key_set.lock().await.clone();
 
-    pub async fn section_key_set(&self) -> Result<&PublicKeySet, Error> {
-        match self.section_key_set.borrow() {
-            Some(section_key_set) => Ok(section_key_set),
+        match keys.borrow() {
+            Some(section_key_set) => Ok(PublicKey::Bls(section_key_set.public_key())),
             None => {
                 trace!("self.section_key_set.borrow() was None");
                 Err(Error::NotBootstrapped)
@@ -765,7 +782,6 @@ impl Session {
         self,
         mut incoming_messages: IncomingMessages,
     ) -> Result<Session, Error> {
-        // &'static
         debug!("Adding IncomingMessages listener");
 
         let mut session = self.clone();

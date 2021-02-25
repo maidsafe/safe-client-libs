@@ -81,7 +81,7 @@ impl Client {
 
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
 
-        let message = self.create_query_message(msg_contents)?;
+        let message = self.create_query_message(msg_contents).await?;
         let endpoint = self.session.endpoint()?.clone();
         let elders = self.session.elders.iter().cloned().collect();
         let pending_queries = self.session.pending_queries.clone();
@@ -140,17 +140,21 @@ impl Client {
         // first make sure our balance  history is up to date
         self.get_history().await?;
 
-        info!(
-            "Our actor balance at send: {:?}",
-            self.transfer_actor.lock().await.balance()
-        );
-
-        let initiated = self
-            .transfer_actor
-            .lock()
-            .await
-            .transfer(amount, to, "asdf".to_string())?
-            .ok_or(Error::NoTransferGenerated)?;
+        {
+            info!(
+                "Our actor balance at send: {:?}",
+                self.transfer_actor.lock().await.balance()
+            );
+        }
+        let initiated;
+        {
+            initiated = self
+                .transfer_actor
+                .lock()
+                .await
+                .transfer(amount, to, "asdf".to_string())?
+                .ok_or(Error::NoTransferGenerated)?;
+        }
 
         let signed_transfer = SignedTransfer {
             debit: initiated.signed_debit,
@@ -159,7 +163,7 @@ impl Client {
         let dot = signed_transfer.id();
         let msg_contents = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
 
-        let message = self.create_cmd_message(msg_contents)?;
+        let message = self.create_cmd_message(msg_contents).await?;
 
         self.transfer_actor
             .lock()
@@ -176,7 +180,7 @@ impl Client {
         // Register the transfer on the network.
         let msg_contents = Cmd::Transfer(TransferCmd::RegisterTransfer(transfer_proof.clone()));
 
-        let message = self.create_cmd_message(msg_contents)?;
+        let message = self.create_cmd_message(msg_contents).await?;
         trace!(
             "Transfer proof received and to be sent in RegisterTransfer req: {:?}",
             transfer_proof
