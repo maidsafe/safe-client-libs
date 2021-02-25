@@ -97,12 +97,21 @@ impl ConnectionManager {
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_cmd(
         msg: &Message,
-        endpoint: Endpoint,
-        elders: Vec<SocketAddr>,
+        session: &Session,
+        // endpoint: Endpoint,
+        // elders: Vec<SocketAddr>,
     ) -> Result<(), Error> {
         let msg_id = msg.id();
+        let endpoint = session.endpoint()?.clone();
 
-        let endpoint = endpoint.clone();
+        let elders: Vec<SocketAddr>;
+
+        {
+            elders = session.elders.lock().await.iter().cloned().collect();
+        }
+
+        // let pending_queries = session.pending_queries.clone();
+
         let src_addr = endpoint.socket_addr();
         trace!(
             "Sending (from {}) command message {:?} w/ id: {:?}",
@@ -164,15 +173,25 @@ impl ConnectionManager {
     pub async fn send_transfer_validation(
         msg: &Message,
         sender: Sender<Result<TransferValidated, Error>>,
-        endpoint: Endpoint,
-        elders: Vec<SocketAddr>,
-        pending_transfers: PendingTransferValidations,
+        session: &Session,
+        // endpoint: Endpoint,
+        // elders: Vec<SocketAddr>,
+        // pending_transfers: PendingTransferValidations,
     ) -> Result<(), Error> {
         info!(
             "Sending transfer validation command {:?} w/ id: {:?}",
             msg,
             msg.id()
         );
+        let endpoint = session.endpoint()?.clone();
+        let elders: Vec<SocketAddr>;
+
+        {
+            elders = session.elders.lock().await.iter().cloned().collect();
+        }
+
+        let pending_transfers = session.pending_transfers.clone();
+
         let msg_bytes = msg.serialize()?;
 
         let msg_id = msg.id();
@@ -209,12 +228,16 @@ impl ConnectionManager {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(
-        msg: &Message,
-        endpoint: Endpoint,
-        elders: Vec<SocketAddr>,
-        pending_queries: PendingQueryResponses,
-    ) -> Result<QueryResponse, Error> {
+    pub async fn send_query(msg: &Message, session: &Session) -> Result<QueryResponse, Error> {
+        let endpoint = session.endpoint()?.clone();
+        let elders: Vec<SocketAddr>;
+
+        {
+            elders = session.elders.lock().await.iter().cloned().collect();
+        }
+
+        let pending_queries = session.pending_queries.clone();
+
         info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = msg.serialize()?;
 
@@ -436,21 +459,31 @@ impl ConnectionManager {
         mut session: Session,
         initial_peer: Option<SocketAddr>,
     ) -> Result<Session, Error> {
-        let elders: Vec<SocketAddr> = session.elders.clone().into_iter().collect();
-        trace!("Bootstrapping with contacts... {:?}", elders);
-
+        if session.is_connecting_to_new_elders {
+            debug!("Already attempting elder connections, dropping get_section call until that is complete.");
+            return Ok(session)
+        }
+        let elders: Vec<SocketAddr>;
+        
+        {
+            elders = session.elders.lock().await.iter().cloned().collect();
+        }
+        
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
         let msg = SectionInfoMsg::GetSectionQuery(XorName::from(session.client_public_key()))
-            .serialize()?;
-
+        .serialize()?;
+        
         if let Some(bootstrapped_peer) = initial_peer {
+            trace!("Bootstrapping with contact... {:?}", bootstrapped_peer);
+
             session
-                .endpoint()?
-                .send_message(msg, &bootstrapped_peer)
-                .await?;
+            .endpoint()?
+            .send_message(msg, &bootstrapped_peer)
+            .await?;
         } else {
-            debug!("connecting to session elders");
+            trace!("Bootstrapping with contacts... {:?}", elders);
+            debug!(">>>>> connecting to session's elders");
             for socket in elders.clone() {
                 let msg = msg.clone();
                 let endpoint = session.endpoint.clone().ok_or(Error::NotBootstrapped)?;
@@ -465,13 +498,20 @@ impl ConnectionManager {
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
     async fn connect_to_elders(mut session: Session) -> Result<Session, Error> {
+
+        session.is_connecting_to_new_elders = true;
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
 
         let endpoint = session.endpoint()?;
         let msg = session.bootstrap_cmd().await?;
-        let peers = session.elders.clone();
+
+        let peers;
+        {
+            peers = session.elders.lock().await.clone();
+        }
+
         debug!(
             "Sending bootstrap cmd from {} to {} peers..",
             endpoint.socket_addr(),
@@ -548,8 +588,13 @@ impl ConnectionManager {
         }
 
         trace!("Connected to {} Elders.", elders.len());
+        {
+            let mut session_elders = session.elders.lock().await;
+            *session_elders = elders;
+        }
 
-        session.elders = elders;
+        session.is_connecting_to_new_elders = false;
+
 
         Ok(session)
     }
@@ -560,8 +605,11 @@ impl ConnectionManager {
         mut session: Session,
     ) -> Result<Session, Error> {
         trace!("Handling network info message {:?}", msg);
+
+        let mut last_elders_try = Default::default();
         match &msg {
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Success(info)) => {
+                debug!("GetSectionResponse::Success!");
                 ConnectionManager::update_session_info(session, info).await
             }
             SectionInfoMsg::RegisterEndUserError(error)
@@ -574,11 +622,26 @@ impl ConnectionManager {
                 Ok(session)
             }
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(addresses)) => {
+                let mut this_elders = Default::default();
+                let mut session = session;
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
-                session.elders = addresses.iter().copied().collect();
+                {
+                    let mut session_elders = session.elders.lock().await;
+                    
+                    *session_elders = addresses.iter().copied().collect();
+                    
+                    this_elders = session_elders.clone();
+                }
 
-                // Continually try and bootstrap against new elders while we're getting rediret
-                let session = Self::get_section(session, None).await?;
+                if this_elders != last_elders_try {
+                    // Continually try and bootstrap against new elders while we're getting rediret
+                    last_elders_try = this_elders;
+                    session = Self::get_section(session, None).await?;
+
+                    // let session = Self::connect_to_elders(session).await?;
+
+                }
+
                 Ok(session)
             }
             SectionInfoMsg::SectionInfoUpdate(update) => {
@@ -604,12 +667,17 @@ impl ConnectionManager {
         mut session: Session,
         info: &SectionInfo,
     ) -> Result<Session, Error> {
-        let original_elders = session.elders;
+        let original_elders ;
+
+        {
+            original_elders = session.elders.lock().await.clone();
+        }
+        
         let elders = &info.elders;
 
-        trace!("GetSectionResponse Success! Elders: ({:?})", elders);
         // Obtain the addresses of the Elders
-        let elders_addrs = elders
+        trace!("Updating session info! Elders: ({:?})", elders);
+        let elders_addrs: HashSet<SocketAddr> = elders
             .iter()
             .map(|(_, socket_addr)| socket_addr)
             .copied()
@@ -619,12 +687,20 @@ impl ConnectionManager {
             let mut keyset = session.section_key_set.lock().await;
             *keyset = Some(info.pk_set.clone());
         }
+        // let session_elders;
+        {
+            let mut session_elders = session.elders.lock().await;
 
-        // clear existing elder list.
-        session.elders = elders_addrs;
+            // clear existing elder list.
+            *session_elders = elders_addrs.clone();
+        }
 
-        if original_elders != session.elders {
-            debug!("There are new elders to connect to!");
+        if original_elders != elders_addrs {
+            debug!(">>>>>>>>>>>>>>>>>>>");
+            debug!(">>>>>>>>>>>>>>>>>>>");
+            debug!(">>>>>>>>>>>>>>>>>>>");
+            debug!(">>>>>>>>>>>>>>>>>>>");
+            debug!(">>>>>>>>>>>>>>>>>>> There are new elders to connect to!");
             Self::connect_to_elders(session).await
         } else {
             Ok(session)
@@ -712,9 +788,10 @@ pub struct Session {
     pub pending_queries: PendingQueryResponses,
     pub pending_transfers: PendingTransferValidations,
     pub endpoint: Option<Endpoint>,
-    pub elders: HashSet<SocketAddr>,
+    pub elders: Arc<Mutex<HashSet<SocketAddr>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
     pub signer: Signer,
+    pub is_connecting_to_new_elders: bool
 }
 
 impl Session {
@@ -733,8 +810,9 @@ impl Session {
             pending_transfers: Arc::new(Mutex::new(HashMap::default())),
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),
-            elders: HashSet::default(),
+            elders: Arc::new(Mutex::new(HashSet::default())),
             signer,
+            is_connecting_to_new_elders: false
         })
     }
 

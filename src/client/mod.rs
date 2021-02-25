@@ -227,10 +227,8 @@ impl Client {
         debug!("Sending QueryRequest: {:?}", query);
 
         let message = self.create_query_message(query).await?;
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-        let pending_queries = self.session.pending_queries.clone();
-        ConnectionManager::send_query(&message, endpoint, elders, pending_queries).await
+
+        ConnectionManager::send_query(&message, &self.session).await
     }
 
     // Build and sign Cmd Message Envelope
@@ -273,9 +271,8 @@ impl Client {
             payment: payment_proof.clone(),
         };
         let message = self.create_cmd_message(msg_contents).await?;
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-        let _ = ConnectionManager::send_cmd(&message, endpoint, elders).await?;
+
+        let _ = ConnectionManager::send_cmd(&message, &self.session).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }

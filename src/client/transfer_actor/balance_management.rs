@@ -82,11 +82,7 @@ impl Client {
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
 
         let message = self.create_query_message(msg_contents).await?;
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-        let pending_queries = self.session.pending_queries.clone();
-        let res =
-            ConnectionManager::send_query(&message, endpoint, elders, pending_queries).await?;
+        let res = ConnectionManager::send_query(&message, &self.session).await?;
 
         match res {
             QueryResponse::GetBalance(balance) => balance.map_err(Error::from),
@@ -186,9 +182,7 @@ impl Client {
             transfer_proof
         );
 
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-        let _ = ConnectionManager::send_cmd(&message, endpoint, elders).await?;
+        let _ = ConnectionManager::send_cmd(&message, &self.session).await?;
 
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.

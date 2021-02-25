@@ -145,11 +145,7 @@ impl Client {
         let message = self.create_query_message(msg_contents).await?;
 
         // This is a normal response manager request. We want quorum on this for now...
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-        let pending_queries = self.session.pending_queries.clone();
-        let res =
-            ConnectionManager::send_query(&message, endpoint, elders, pending_queries).await?;
+        let res = ConnectionManager::send_query(&message, &self.session).await?;
 
         let history = match res {
             QueryResponse::GetHistory(history) => history.map_err(Error::from),
@@ -198,11 +194,7 @@ impl Client {
 
         // This is a normal response manager request. We want quorum on this for now...
 
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-        let pending_queries = self.session.pending_queries.clone();
-        let res =
-            ConnectionManager::send_query(&message, endpoint, elders, pending_queries).await?;
+        let res = ConnectionManager::send_query(&message, &self.session).await?;
 
         match res {
             QueryResponse::GetStoreCost(cost) => cost.map_err(Error::ErrorMessage),
@@ -269,18 +261,11 @@ impl Client {
 
         let (sender, mut receiver) = channel::<Result<TransferValidated, Error>>(7);
 
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-        let pending_transfers = self.session.pending_transfers.clone();
+        // let endpoint = self.session.endpoint()?.clone();
+        // let elders = self.session.elders.iter().cloned().collect();
+        // let pending_transfers = self.session.pending_transfers.clone();
 
-        let _ = ConnectionManager::send_transfer_validation(
-            &msg,
-            sender,
-            endpoint,
-            elders,
-            pending_transfers,
-        )
-        .await?;
+        let _ = ConnectionManager::send_transfer_validation(&msg, sender, &self.session).await?;
 
         let mut returned_errors = vec![];
         let mut response_count = 0;

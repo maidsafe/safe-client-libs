@@ -75,10 +75,7 @@ impl Client {
 
         let message = self.create_cmd_message(simluated_farming_cmd).await?;
 
-        let endpoint = self.session.endpoint()?.clone();
-        let elders = self.session.elders.iter().cloned().collect();
-
-        let _ = ConnectionManager::send_cmd(&message, endpoint, elders).await?;
+        let _ = ConnectionManager::send_cmd(&message, &self.session).await?;
 
         // If we're getting the payout for our own actor, update it here
         info!("Applying simulated payout locally, via query for history...");
