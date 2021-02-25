@@ -36,8 +36,8 @@ mod tests {
     #[tokio::test]
     pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<()> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
-        let pk = keypair.public_key();
-        let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
+        let authority = keypair.public_key();
+        let data = Sequence::new_public(authority, XorName::random(), 33323, None);
 
         let initial_actor = create_test_client_with(Some(keypair)).await?;
         match initial_actor.pay_and_write_sequence_to_network(data).await {
