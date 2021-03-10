@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.49.0](https://github.com/maidsafe/sn_client/compare/v0.48.1...v0.49.0) (2021-03-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** Policy mutation APIs are removed.
+
+### Features
+
+* **api:** removing APIs that are meant for mutating Seuquence's Policy as they are now immutable ([9ad657b](https://github.com/maidsafe/sn_client/commit/9ad657b366b754c08772c2a446e7e9f7ceff57ea))
+
 ### [0.48.1](https://github.com/maidsafe/sn_client/compare/v0.48.0...v0.48.1) (2021-03-04)
 
 ## [0.48.0](https://github.com/maidsafe/sn_client/compare/v0.47.2...v0.48.0) (2021-02-25)
