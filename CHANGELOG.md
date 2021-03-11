@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.50.0](https://github.com/maidsafe/sn_client/compare/v0.49.0...v0.50.0) (2021-03-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tokio:** new Tokio runtime version is not backward compatible with tokio versions < 1.
+
+* **tokio:** upgrade qp2p to v0.10.1 and tokio to v1.3.0 ([07ce604](https://github.com/maidsafe/sn_client/commit/07ce6045f371b3cdef7c8f23c027b304b506cb2a))
+
 ## [0.49.0](https://github.com/maidsafe/sn_client/compare/v0.48.1...v0.49.0) (2021-03-10)
 
 
