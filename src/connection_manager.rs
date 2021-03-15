@@ -86,8 +86,8 @@ impl ConnectionManager {
 
         // bootstrap is not complete until we have pk set...
         while !we_have_keyset {
-            use tokio::time::{delay_for, Duration};
-            delay_for(Duration::from_millis(500)).await;
+            use tokio::time::{sleep, Duration};
+            sleep(Duration::from_millis(500)).await;
             we_have_keyset = session.section_key_set.lock().await.is_some();
         }
 
