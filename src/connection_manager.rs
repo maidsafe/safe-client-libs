@@ -585,7 +585,6 @@ impl ConnectionManager {
     ) -> Result<Session, Error> {
         trace!("Handling network info message {:?}", msg);
 
-        let mut last_elders_try = Default::default();
         match &msg {
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Success(info)) => {
                 debug!("GetSectionResponse::Success!");
@@ -601,23 +600,11 @@ impl ConnectionManager {
                 Ok(session)
             }
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(addresses)) => {
-                let mut this_elders = Default::default();
-                let mut session = session;
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
                 {
                     let mut session_elders = session.elders.lock().await;
 
                     *session_elders = addresses.iter().copied().collect();
-
-                    this_elders = session_elders.clone();
-                }
-
-                if this_elders != last_elders_try {
-                    // Continually try and bootstrap against new elders while we're getting rediret
-                    last_elders_try = this_elders;
-                    session = Self::get_section(session, None).await?;
-
-                    // let session = Self::connect_to_elders(session).await?;
                 }
 
                 Ok(session)
