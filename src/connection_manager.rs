@@ -104,10 +104,8 @@ impl ConnectionManager {
         let msg_id = msg.id();
         let endpoint = session.endpoint()?.clone();
 
-        let elders: Vec<SocketAddr>;
-
-        {
-            elders = session.elders.lock().await.iter().cloned().collect();
+        let elders = {
+             session.elders.lock().await.iter().cloned().collect();
         }
 
         // let pending_queries = session.pending_queries.clone();
