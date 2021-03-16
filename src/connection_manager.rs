@@ -641,10 +641,7 @@ impl ConnectionManager {
     }
 
     /// Apply updated info to a network session, and trigger connections
-    async fn update_session_info(
-        mut session: Session,
-        info: &SectionInfo,
-    ) -> Result<Session, Error> {
+    async fn update_session_info(session: Session, info: &SectionInfo) -> Result<Session, Error> {
         let original_elders;
 
         {
