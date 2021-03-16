@@ -172,9 +172,6 @@ impl ConnectionManager {
         msg: &Message,
         sender: Sender<Result<TransferValidated, Error>>,
         session: &Session,
-        // endpoint: Endpoint,
-        // elders: Vec<SocketAddr>,
-        // pending_transfers: PendingTransferValidations,
     ) -> Result<(), Error> {
         info!(
             "Sending transfer validation command {:?} w/ id: {:?}",
