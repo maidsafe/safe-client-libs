@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.50.1](https://github.com/maidsafe/sn_client/compare/v0.50.0...v0.50.1) (2021-03-16)
+
+
+### Bug Fixes
+
+* **bootstrap:** connect to all nodes and dont overwrite qp2p ([bcb31bd](https://github.com/maidsafe/sn_client/commit/bcb31bd410172c9f8c1245a9389b70776f9b7d6a))
+
 ## [0.50.0](https://github.com/maidsafe/sn_client/compare/v0.49.0...v0.50.0) (2021-03-11)
 
 
