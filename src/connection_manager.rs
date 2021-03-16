@@ -104,9 +104,7 @@ impl ConnectionManager {
         let msg_id = msg.id();
         let endpoint = session.endpoint()?.clone();
 
-        let elders = {
-             session.elders.lock().await.iter().cloned().collect();
-        }
+        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
 
         // let pending_queries = session.pending_queries.clone();
 
@@ -179,11 +177,7 @@ impl ConnectionManager {
             msg.id()
         );
         let endpoint = session.endpoint()?.clone();
-        let elders: Vec<SocketAddr>;
-
-        {
-            elders = session.elders.lock().await.iter().cloned().collect();
-        }
+        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
 
         let pending_transfers = session.pending_transfers.clone();
 
@@ -225,11 +219,7 @@ impl ConnectionManager {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(msg: &Message, session: &Session) -> Result<QueryResponse, Error> {
         let endpoint = session.endpoint()?.clone();
-        let elders: Vec<SocketAddr>;
-
-        {
-            elders = session.elders.lock().await.iter().cloned().collect();
-        }
+        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
 
         let pending_queries = session.pending_queries.clone();
 
@@ -451,31 +441,27 @@ impl ConnectionManager {
     // Get section info. Optionally from one node (if we've just bootstrapped qp2p eg)
     // Otherwise we use all session nodes
     async fn get_section(
-        mut session: Session,
+        session: Session,
         initial_peer: Option<SocketAddr>,
     ) -> Result<Session, Error> {
         if session.is_connecting_to_new_elders {
             debug!("Already attempting elder connections, dropping get_section call until that is complete.");
-            return Ok(session)
+            return Ok(session);
         }
-        let elders: Vec<SocketAddr>;
-        
-        {
-            elders = session.elders.lock().await.iter().cloned().collect();
-        }
-        
+        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
+
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
         let msg = SectionInfoMsg::GetSectionQuery(XorName::from(session.client_public_key()))
-        .serialize()?;
-        
+            .serialize()?;
+
         if let Some(bootstrapped_peer) = initial_peer {
             trace!("Bootstrapping with contact... {:?}", bootstrapped_peer);
 
             session
-            .endpoint()?
-            .send_message(msg, &bootstrapped_peer)
-            .await?;
+                .endpoint()?
+                .send_message(msg, &bootstrapped_peer)
+                .await?;
         } else {
             trace!("Bootstrapping with contacts... {:?}", elders);
             debug!(">>>>> connecting to session's elders");
@@ -493,7 +479,6 @@ impl ConnectionManager {
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
     async fn connect_to_elders(mut session: Session) -> Result<Session, Error> {
-
         session.is_connecting_to_new_elders = true;
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
@@ -590,7 +575,6 @@ impl ConnectionManager {
 
         session.is_connecting_to_new_elders = false;
 
-
         Ok(session)
     }
 
@@ -622,9 +606,9 @@ impl ConnectionManager {
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
                 {
                     let mut session_elders = session.elders.lock().await;
-                    
+
                     *session_elders = addresses.iter().copied().collect();
-                    
+
                     this_elders = session_elders.clone();
                 }
 
@@ -634,7 +618,6 @@ impl ConnectionManager {
                     session = Self::get_section(session, None).await?;
 
                     // let session = Self::connect_to_elders(session).await?;
-
                 }
 
                 Ok(session)
@@ -662,12 +645,12 @@ impl ConnectionManager {
         mut session: Session,
         info: &SectionInfo,
     ) -> Result<Session, Error> {
-        let original_elders ;
+        let original_elders;
 
         {
             original_elders = session.elders.lock().await.clone();
         }
-        
+
         let elders = &info.elders;
 
         // Obtain the addresses of the Elders
@@ -786,7 +769,7 @@ pub struct Session {
     pub elders: Arc<Mutex<HashSet<SocketAddr>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
     pub signer: Signer,
-    pub is_connecting_to_new_elders: bool
+    pub is_connecting_to_new_elders: bool,
 }
 
 impl Session {
@@ -807,7 +790,7 @@ impl Session {
             section_key_set: Arc::new(Mutex::new(None)),
             elders: Arc::new(Mutex::new(HashSet::default())),
             signer,
-            is_connecting_to_new_elders: false
+            is_connecting_to_new_elders: false,
         })
     }
 
