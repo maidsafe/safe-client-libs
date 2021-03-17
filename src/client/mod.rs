@@ -28,7 +28,7 @@ use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
 use sn_messaging::{
-    client::{Cmd, DataCmd, Message, Query},
+    client::{Cmd, DataCmd, ProcessMsg, Query},
     MessageId,
 };
 use std::{
@@ -195,11 +195,11 @@ impl Client {
     }
 
     // Build and sign Cmd Message Envelope
-    pub(crate) async fn create_cmd_message(&self, msg_contents: Cmd) -> Result<Message, Error> {
+    pub(crate) async fn create_cmd_message(&self, msg_contents: Cmd) -> Result<ProcessMsg, Error> {
         let id = MessageId::new();
         trace!("Creating cmd message with id: {:?}", id);
 
-        Ok(Message::Cmd {
+        Ok(ProcessMsg::Cmd {
             cmd: msg_contents,
             id,
         })
@@ -218,7 +218,7 @@ impl Client {
         };
         let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = self.session.send_cmd(&message).await?;
+        let _ = self.session.send_cmd(message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }

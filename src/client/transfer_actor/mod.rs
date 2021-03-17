@@ -20,7 +20,7 @@ use sn_data_types::{
     DebitId, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
 };
 use sn_messaging::client::{
-    Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery,
+    Cmd, DataCmd, ProcessMsg, Query, QueryResponse, TransferCmd, TransferQuery,
 };
 use sn_transfers::{ActorEvent, TransferInitiated};
 use tokio::sync::mpsc::channel;
@@ -226,7 +226,7 @@ impl Client {
             }))?;
 
         let payment_proof: TransferAgreementProof = self
-            .await_validation(&transfer_message, signed_transfer.id())
+            .await_validation(transfer_message, signed_transfer.id())
             .await?;
 
         debug!("Payment proof retrieved");
@@ -236,7 +236,7 @@ impl Client {
     /// Send message and await validation and constructing of TransferAgreementProof
     async fn await_validation(
         &self,
-        msg: &Message,
+        msg: ProcessMsg,
         _id: DebitId,
     ) -> Result<TransferAgreementProof, Error> {
         info!("Awaiting transfer validation");
@@ -247,7 +247,8 @@ impl Client {
         // let elders = self.session.elders.iter().cloned().collect();
         // let pending_transfers = self.session.pending_transfers.clone();
 
-        let _ = self.session.send_transfer_validation(&msg, sender).await?;
+        let msg_id = msg.id();
+        let _ = self.session.send_transfer_validation(msg, sender).await?;
 
         let mut returned_errors = vec![];
         let mut response_count: usize = 0;
@@ -271,7 +272,7 @@ impl Client {
                                     if let Some(tap) = validation.proof {
                                         debug!("Transfer has proof.");
                                         self.session
-                                            .remove_pending_transfer_sender(&msg.id())
+                                            .remove_pending_transfer_sender(&msg_id)
                                             .await?;
                                         return Ok(tap);
                                     }
@@ -293,9 +294,7 @@ impl Client {
                             );
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
-                            self.session
-                                .remove_pending_transfer_sender(&msg.id())
-                                .await?;
+                            self.session.remove_pending_transfer_sender(&msg_id).await?;
                             return Err(error);
                         }
 
@@ -308,10 +307,7 @@ impl Client {
             // at any point if we've had enough responses in, let's clean up
             if response_count >= supermajority {
                 // remove pending listener
-                let _ = self
-                    .session
-                    .remove_pending_transfer_sender(&msg.id())
-                    .await?;
+                let _ = self.session.remove_pending_transfer_sender(&msg_id).await?;
             }
         }
     }

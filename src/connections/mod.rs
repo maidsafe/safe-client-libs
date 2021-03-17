@@ -104,6 +104,18 @@ impl Session {
         }
     }
 
+    pub async fn section_key(&self) -> Result<PublicKey, Error> {
+        let keys = self.section_key_set.lock().await.clone();
+
+        match keys.borrow() {
+            Some(section_key_set) => Ok(PublicKey::Bls(section_key_set.public_key())),
+            None => {
+                trace!("self.section_key_set.borrow() was None");
+                Err(Error::NotBootstrapped)
+            }
+        }
+    }
+
     /// Get section's prefix
     pub async fn section_prefix(&self) -> Option<Prefix> {
         *self.section_prefix.lock().await

@@ -14,7 +14,7 @@ use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{Blob, PrivateBlob, PublicBlob, TransferValidated};
 use sn_messaging::{
-    client::{BlobRead, DataQuery, Message, Query, QueryResponse},
+    client::{BlobRead, ClientMsg, DataQuery, ProcessMsg, Query, QueryResponse},
     section_info::Message as SectionInfoMsg,
     MessageId,
 };
@@ -94,8 +94,8 @@ impl Session {
         Ok(())
     }
 
-    /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
+    /// Send a `ClientMsg` to the network without awaiting for a response.
+    pub async fn send_cmd(&self, msg: ProcessMsg) -> Result<(), Error> {
         let msg_id = msg.id();
         let endpoint = self.endpoint()?.clone();
 
@@ -108,7 +108,16 @@ impl Session {
             msg,
             msg_id
         );
-        let msg_bytes = msg.serialize()?;
+
+        let msg = ClientMsg::Process(msg);
+
+        let section_pk = self
+            .section_key()
+            .await?
+            .bls()
+            .ok_or(Error::NoBlsSectionKey)?;
+        let dest_section_name = XorName::from(self.client_public_key());
+        let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -148,7 +157,7 @@ impl Session {
     /// Send a transfer validation message to all Elder without awaiting for a response.
     pub async fn send_transfer_validation(
         &self,
-        msg: &Message,
+        msg: ProcessMsg,
         sender: Sender<Result<TransferValidated, Error>>,
     ) -> Result<(), Error> {
         info!(
@@ -161,7 +170,14 @@ impl Session {
 
         let pending_transfers = self.pending_transfers.clone();
 
-        let msg_bytes = msg.serialize()?;
+        let section_pk = self
+            .section_key()
+            .await?
+            .bls()
+            .ok_or(Error::NoBlsSectionKey)?;
+        let dest_section_name = XorName::from(self.client_public_key());
+        let msg = ClientMsg::Process(msg);
+        let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         let msg_id = msg.id();
 
@@ -196,15 +212,29 @@ impl Session {
         Ok(())
     }
 
-    /// Send a Query `Message` to the network awaiting for the response.
+    /// Send a Query `ClientMsg` to the network awaiting for the response.
     pub(crate) async fn send_query(&self, query: Query) -> Result<QueryResult, Error> {
         let data_name = query.dst_address();
         let endpoint = self.endpoint()?.clone();
         let pending_queries = self.pending_queries.clone();
 
+        let chunk_addr = if let Query::Data(DataQuery::Blob(BlobRead::Get(address))) = query {
+            Some(address)
+        } else {
+            None
+        };
+
         let msg_id = MessageId::new();
-        let msg = Message::Query { query, id: msg_id };
-        let msg_bytes = msg.serialize()?;
+        let msg = ClientMsg::Process(ProcessMsg::Query { query, id: msg_id });
+
+        let section_pk = self
+            .section_key()
+            .await?
+            .bls()
+            .ok_or(Error::NoBlsSectionKey)?;
+        let dest_section_name = XorName::from(self.client_public_key());
+
+        let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         // We select the NUM_OF_ELDERS_SUBSET_FOR_QUERIES closest
         // connected Elders to the data we are querying
@@ -238,16 +268,6 @@ impl Session {
         let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
         let _ = pending_queries.lock().await.insert(msg_id, sender);
 
-        let chunk_addr = if let Message::Query {
-            query: Query::Data(DataQuery::Blob(BlobRead::Get(address))),
-            ..
-        } = &msg
-        {
-            Some(*address)
-        } else {
-            None
-        };
-
         // Set up response listeners
         for socket in elders {
             let endpoint = endpoint.clone();
@@ -262,14 +282,14 @@ impl Session {
 
                     if let Err(err) = endpoint.send_message(msg_bytes_clone, &socket).await {
                         error!(
-                            "Try #{:?} @ {:?}, failed sending query message: {}",
+                            "Try #{:?} @ {:?}, failed sending query message: {:?}",
                             attempt + 1,
                             socket,
                             err
                         );
                         result = Err(Error::SendingQuery);
                     } else {
-                        trace!("Message with {:?} sent to {}", &msg_id, &socket);
+                        trace!("ClientMsg with {:?} sent to {}", &msg_id, &socket);
                         result = Ok(());
                         break;
                     }
@@ -283,7 +303,7 @@ impl Session {
         // TODO:
         // We are now simply accepting the very first valid response we receive,
         // but we may want to revisit this to compare multiple responses and validate them,
-        // similar to what we used to do up to the follosing commit:
+        // similar to what we used to do up to the following commit:
         // https://github.com/maidsafe/sn_client/blob/9091a4f1f20565f25d3a8b00571cc80751918928/src/connection_manager.rs#L328
         //
         // For Chunk responses we already validate its hash matches the xorname requested from,
@@ -379,12 +399,14 @@ impl Session {
         }
 
         // 1. We query the network for section info.
-        trace!(
-            "Querying for section info from bootstrapped node: {:?}",
-            bootstrapped_peer
-        );
-        let msg =
-            SectionInfoMsg::GetSectionQuery(XorName::from(self.client_public_key())).serialize()?;
+        trace!("Querying for section info from bootstrapped node...");
+
+        // FIXME: we don't know our section PK. We must supply a pk for now we do a random one...
+        let random_section_pk = threshold_crypto::SecretKey::random().public_key();
+        let dest_section_name = XorName::from(self.client_public_key());
+
+        let msg = SectionInfoMsg::GetSectionQuery(self.client_public_key())
+            .serialize(dest_section_name, random_section_pk)?;
 
         self.endpoint()?
             .send_message(msg, bootstrapped_peer)
@@ -527,11 +549,19 @@ impl Session {
             .signer
             .sign(&serialize(&self.endpoint()?.socket_addr())?)
             .await?;
+
+        // FIXME: Do we actually know our seciton PK here?
+
+        // Hack: This is jsut a random bls pk, we dont know our section as yet, but right now
+        // a target pk is needed on all msgs
+        let random_section_pk = threshold_crypto::SecretKey::random().public_key();
+        let dest_section_name = XorName::from(self.client_public_key());
+
         SectionInfoMsg::RegisterEndUserCmd {
             end_user: self.client_public_key(),
             socketaddr_sig,
         }
-        .serialize()
+        .serialize(dest_section_name, random_section_pk)
         .map_err(Error::MessagingProtocol)
     }
 }

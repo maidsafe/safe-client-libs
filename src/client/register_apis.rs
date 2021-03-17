@@ -93,7 +93,7 @@ impl Client {
         };
         let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = self.session.send_cmd(&message).await?;
+        let _ = self.session.send_cmd(message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }

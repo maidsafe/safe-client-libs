@@ -74,7 +74,7 @@ impl Client {
 
         let message = self.create_cmd_message(simluated_farming_cmd).await?;
 
-        let _ = self.session.send_cmd(&message).await?;
+        let _ = self.session.send_cmd(message).await?;
 
         // If we're getting the payout for our own actor, update it here
         info!("Applying simulated payout locally, via query for history...");

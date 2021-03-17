@@ -11,7 +11,7 @@ use crate::Error;
 use log::{debug, error, info, trace, warn};
 use qp2p::IncomingMessages;
 use sn_messaging::{
-    client::{Event, Message},
+    client::{ClientMsg, Event, ProcessMsg},
     section_info::{
         Error as SectionInfoError, GetSectionResponse, Message as SectionInfoMsg, SectionInfo,
     },
@@ -69,12 +69,21 @@ impl Session {
             let message_type = WireMsg::deserialize(message)?;
             trace!("Incoming message from {:?}", &src);
             match message_type {
-                MessageType::SectionInfo(msg) => {
+                MessageType::SectionInfo { msg, .. } => {
                     if let Err(error) = self.handle_section_info_msg(msg, src).await {
                         error!("Error handling network info message: {:?}", error);
                     }
                 }
-                MessageType::ClientMessage(msg) => self.handle_client_msg(msg, src).await,
+                MessageType::Client { msg, .. } => {
+                    match msg {
+                        ClientMsg::Process(msg) => self.handle_client_msg(msg, src).await,
+                        ClientMsg::ProcessingError(error) => {
+                            warn!("Processing error received. {:?}", error);
+                            // TODO: Handle lazy message errors
+                        }
+                        msg => warn!("SupportingInfo received: {:?}", msg),
+                    }
+                }
                 msg_type => {
                     warn!("Unexpected message type received: {:?}", msg_type);
                 }
@@ -121,8 +130,14 @@ impl Session {
                 // request the section info again.
                 self.disconnect_from_peers(vec![src])?;
                 let endpoint = self.endpoint()?.clone();
-                self.qp2p.update_bootstrap_contacts(elders);
-                let boostrapped_peer = self.qp2p.rebootstrap(&endpoint, elders).await?;
+                let new_elders_addrs: Vec<SocketAddr> =
+                    elders.iter().map(|(_, addr)| *addr).collect();
+                self.qp2p
+                    .update_bootstrap_contacts(new_elders_addrs.as_slice());
+                let boostrapped_peer = self
+                    .qp2p
+                    .rebootstrap(&endpoint, new_elders_addrs.as_slice())
+                    .await?;
                 self.send_get_section_query(&boostrapped_peer).await?;
 
                 Ok(())
@@ -207,9 +222,9 @@ impl Session {
     }
 
     // Handle messages intended for client consumption (re: queries + commands)
-    async fn handle_client_msg(&self, msg: Message, src: SocketAddr) {
+    async fn handle_client_msg(&self, msg: ProcessMsg, src: SocketAddr) {
         match msg {
-            Message::QueryResponse {
+            ProcessMsg::QueryResponse {
                 response,
                 correlation_id,
                 ..
@@ -234,7 +249,7 @@ impl Session {
                     trace!("No channel found for {:?}", correlation_id);
                 }
             }
-            Message::Event {
+            ProcessMsg::Event {
                 event,
                 correlation_id,
                 ..
@@ -254,7 +269,7 @@ impl Session {
                     }
                 }
             }
-            Message::CmdError {
+            ProcessMsg::CmdError {
                 error,
                 correlation_id,
                 ..

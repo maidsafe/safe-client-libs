@@ -169,9 +169,8 @@ impl Client {
                 signed_credit: signed_transfer.credit.clone(),
             }))?;
 
-        let transfer_proof: TransferAgreementProof = self
-            .await_validation(&message, signed_transfer.id())
-            .await?;
+        let transfer_proof: TransferAgreementProof =
+            self.await_validation(message, signed_transfer.id()).await?;
 
         // Register the transfer on the network.
         let msg_contents = Cmd::Transfer(TransferCmd::RegisterTransfer(transfer_proof.clone()));
@@ -182,7 +181,7 @@ impl Client {
             transfer_proof
         );
 
-        let _ = self.session.send_cmd(&message).await?;
+        let _ = self.session.send_cmd(message).await?;
 
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.
