@@ -42,7 +42,7 @@ use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
 use sn_messaging::{
-    client::{Cmd, DataCmd, Message, Query, QueryResponse},
+    client::{Cmd, DataCmd, ProcessMsg, Query, QueryResponse},
     MessageId,
 };
 use std::{
@@ -243,30 +243,31 @@ impl Client {
     }
 
     // Build and sign Cmd Message Envelope
-    pub(crate) async fn create_cmd_message(&self, msg_contents: Cmd) -> Result<Message, Error> {
+    pub(crate) async fn create_cmd_message(&self, msg_contents: Cmd) -> Result<ProcessMsg, Error> {
         let id = MessageId::new();
         trace!("Creating cmd message with id: {:?}", id);
 
         let target_section_pk = Some(self.session.section_key().await?);
 
-        Ok(Message::Cmd {
+        Ok(ProcessMsg::Cmd {
             cmd: msg_contents,
             id,
-            target_section_pk,
         })
     }
 
     // Build a Query
-    pub(crate) async fn create_query_message(&self, msg_contents: Query) -> Result<Message, Error> {
+    pub(crate) async fn create_query_message(
+        &self,
+        msg_contents: Query,
+    ) -> Result<ProcessMsg, Error> {
         let id = MessageId::new();
         trace!("Creating query message with id : {:?}", id);
 
         let target_section_pk = Some(self.session.section_key().await?);
 
-        Ok(Message::Query {
+        Ok(ProcessMsg::Query {
             query: msg_contents,
             id,
-            target_section_pk,
         })
     }
 

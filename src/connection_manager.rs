@@ -16,7 +16,7 @@ use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Endpoint, IncomingMessages, QuicP2p};
 use sn_data_types::{Keypair, PublicKey, Signature, TransferValidated};
 use sn_messaging::{
-    client::{Event, Message, QueryResponse},
+    client::{Event, Message, ProcessMsg, QueryResponse},
     section_info::{
         Error as SectionInfoError, GetSectionResponse, Message as SectionInfoMsg, SectionInfo,
     },
@@ -24,7 +24,7 @@ use sn_messaging::{
 };
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     net::SocketAddr,
     sync::Arc,
 };
@@ -92,7 +92,10 @@ impl Session {
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
+    pub async fn send_cmd(
+        &self,
+        msg: ProcessMsg,
+    ) -> Result<(), Error> {
         let msg_id = msg.id();
         let endpoint = self.endpoint()?.clone();
 
@@ -105,7 +108,15 @@ impl Session {
             msg,
             msg_id
         );
-        let msg_bytes = msg.serialize()?;
+
+        let msg = Message::Process(msg);
+        let section_pk = session
+            .section_key()
+            .await?
+            .bls()
+            .ok_or(Error::NoBlsSectionKey)?;
+        let dest_section_name = XorName::from(session.client_public_key());
+        let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -156,7 +167,7 @@ impl Session {
     /// Send a transfer validation message to all Elder without awaiting for a response.
     pub async fn send_transfer_validation(
         &self,
-        msg: &Message,
+        msg: ProcessMsg,
         sender: Sender<Result<TransferValidated, Error>>,
     ) -> Result<(), Error> {
         info!(
@@ -169,7 +180,14 @@ impl Session {
 
         let pending_transfers = self.pending_transfers.clone();
 
-        let msg_bytes = msg.serialize()?;
+        let section_pk = session
+            .section_key()
+            .await?
+            .bls()
+            .ok_or(Error::NoBlsSectionKey)?;
+        let dest_section_name = XorName::from(session.client_public_key());
+        let msg = Message::Process(msg);
+        let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         let msg_id = msg.id();
 
@@ -212,7 +230,16 @@ impl Session {
         let pending_queries = self.pending_queries.clone();
 
         info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
-        let msg_bytes = msg.serialize()?;
+
+        let msg = Message::Process(msg);
+        let section_pk = session
+            .section_key()
+            .await?
+            .bls()
+            .ok_or(Error::NoBlsSectionKey)?;
+        let dest_section_name = XorName::from(session.client_public_key());
+
+        let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         // We send the same message to all Elders concurrently,
         // and we try to find a majority on the responses
@@ -380,8 +407,13 @@ impl Session {
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
-        let msg =
-            SectionInfoMsg::GetSectionQuery(XorName::from(self.client_public_key())).serialize()?;
+
+        // HACK: we don't know our section PK. We must supply a pk for now we do a random one...
+        let random_section_pk = threshold_crypto::SecretKey::random().public_key();
+        let dest_section_name = XorName::from(self.client_public_key());
+
+        let msg = SectionInfoMsg::GetSectionQuery(self.client_public_key())
+            .serialize(dest_section_name, random_section_pk)?;
 
         if let Some(bootstrapped_peer) = initial_peer {
             trace!("Bootstrapping with contact... {:?}", bootstrapped_peer);
@@ -553,16 +585,8 @@ impl Session {
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
                 {
-                    // HACK: Until we have XorName returned here too, we just add a junk
-                    // XorName so we can progress. This will be corrected as/when we get_section.
-                    // TODO: update as we merge lazy message changes wher actual XorName is supplied
-                    let mut known_elders = self.all_known_elders.lock().await;
-                    let mut temp_elders: BTreeMap<SocketAddr, XorName> = Default::default();
-                    for socket in elders {
-                        let _ = temp_elders.insert(*socket, XorName::random());
-                    }
-
-                    *known_elders = temp_elders;
+                    let mut session_elders = self.elders.lock().await;
+                    *session_elders = elders.iter().copied().collect();
                 }
                 // Disconnect from peer that sent us the redirect, connect to the new elders provided and
                 // request the section info again.
@@ -654,10 +678,10 @@ impl Session {
     }
 
     /// Handle messages intended for client consumption (re: queries + commands)
-    async fn handle_client_msg(&self, msg: Message, src: SocketAddr) {
+    async fn handle_client_msg(&self, msg: ProcessMsg, src: SocketAddr) {
         let notifier = self.notifier.clone();
         match msg.clone() {
-            Message::QueryResponse {
+            ProcessMsg::QueryResponse {
                 response,
                 correlation_id,
                 ..
@@ -679,7 +703,7 @@ impl Session {
                     );
                 }
             }
-            Message::Event {
+            ProcessMsg::Event {
                 event,
                 correlation_id,
                 ..
@@ -697,7 +721,7 @@ impl Session {
                     }
                 }
             }
-            Message::CmdError {
+            ProcessMsg::CmdError {
                 error,
                 correlation_id,
                 ..
@@ -844,6 +868,11 @@ impl Session {
         self.signer.public_key()
     }
 
+    /// Get section's prefix
+    pub async fn section_prefix(&self) -> Option<Prefix> {
+        self.section_prefix.lock().await.clone()
+    }
+
     pub fn endpoint(&self) -> Result<&Endpoint, Error> {
         match self.endpoint.borrow() {
             Some(endpoint) => Ok(endpoint),
@@ -866,21 +895,23 @@ impl Session {
         }
     }
 
-    /// Get section's prefix
-    pub async fn section_prefix(&self) -> Option<Prefix> {
-        *self.section_prefix.lock().await
-    }
-
     pub async fn bootstrap_cmd(&self) -> Result<bytes::Bytes, Error> {
         let socketaddr_sig = self
             .signer
             .sign(&serialize(&self.endpoint()?.socket_addr())?)
             .await?;
+
+        // TODO: Do we actually know our seciton PK here?
+
+        // Hack: This is jsut a random bls pk, we dont know our section as yet, but right now
+        // a target pk is needed on all msgs
+        let random_section_pk = threshold_crypto::SecretKey::random().public_key();
+        let dest_section_name = XorName::from(self.client_public_key());
         SectionInfoMsg::RegisterEndUserCmd {
             end_user: self.client_public_key(),
             socketaddr_sig,
         }
-        .serialize()
+        .serialize(dest_section_name, random_section_pk)
         .map_err(Error::MessagingProtocol)
     }
 
@@ -908,7 +939,19 @@ impl Session {
                             }
                         }
                     }
-                    MessageType::ClientMessage(msg) => session.handle_client_msg(msg, src).await,
+                    MessageType::ClientMessage { msg, .. } => {
+                        match msg {
+                            Message::Process(msg) => {
+                                session.handle_client_msg(msg, src).await
+                            }
+                            Message::ProcessingError(error) => {
+                                warn!("Processing error received. {:?}", error);
+                                // TODO: Handle lazy message errors
+
+                                session
+                            }
+                        }
+                    }
                     msg_type => {
                         warn!("Unexpected message type received: {:?}", msg_type);
                     }

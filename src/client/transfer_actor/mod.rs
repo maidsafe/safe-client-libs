@@ -13,7 +13,7 @@ use sn_data_types::{
     DebitId, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
 };
 use sn_messaging::client::{
-    Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery,
+    Cmd, DataCmd, ProcessMsg, Query, QueryResponse, TransferCmd, TransferQuery,
 };
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use tokio::sync::mpsc::channel;
@@ -235,7 +235,7 @@ impl Client {
             }))?;
 
         let payment_proof: TransferAgreementProof = self
-            .await_validation(&transfer_message, signed_transfer.id())
+            .await_validation(transfer_message, signed_transfer.id())
             .await?;
 
         debug!("Payment proof retrieved");
@@ -245,7 +245,7 @@ impl Client {
     /// Send message and await validation and constructing of TransferAgreementProof
     async fn await_validation(
         &self,
-        msg: &Message,
+        msg: ProcessMsg,
         _id: DebitId,
     ) -> Result<TransferAgreementProof, Error> {
         info!("Awaiting transfer validation");

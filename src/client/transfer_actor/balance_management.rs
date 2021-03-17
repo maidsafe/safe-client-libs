@@ -80,7 +80,6 @@ impl Client {
         let public_key = pk.unwrap_or(self.public_key().await);
 
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
-
         let message = self.create_query_message(msg_contents).await?;
         let res = self.session.send_query(&message).await?;
 
@@ -169,9 +168,8 @@ impl Client {
                 signed_credit: signed_transfer.credit.clone(),
             }))?;
 
-        let transfer_proof: TransferAgreementProof = self
-            .await_validation(&message, signed_transfer.id())
-            .await?;
+        let transfer_proof: TransferAgreementProof =
+            self.await_validation(message, signed_transfer.id()).await?;
 
         // Register the transfer on the network.
         let msg_contents = Cmd::Transfer(TransferCmd::RegisterTransfer(transfer_proof.clone()));
