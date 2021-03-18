@@ -6,11 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::{
-    client::Client,
-    connection_manager::{ConnectionManager, STANDARD_ELDERS_COUNT},
-    errors::Error,
-};
+use crate::{client::Client, connection_manager::ConnectionManager, errors::Error};
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
@@ -268,7 +264,9 @@ impl Client {
         let _ = ConnectionManager::send_transfer_validation(&msg, sender, &self.session).await?;
 
         let mut returned_errors = vec![];
-        let mut response_count = 0;
+        let mut response_count: usize = 0;
+        let half_the_section = self.session.elders_count().await / 2;
+
         loop {
             match receiver.recv().await {
                 Some(event) => match event {
@@ -304,7 +302,7 @@ impl Client {
                         error!("Error receiving SignatureShare: {:?}", e);
                         returned_errors.push(e);
 
-                        if returned_errors.len() > STANDARD_ELDERS_COUNT / 2 {
+                        if returned_errors.len() > half_the_section {
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
                             let pending_transfers = self.session.pending_transfers.clone();
@@ -327,7 +325,7 @@ impl Client {
             }
 
             // at any point if we've had enough responses in, let's clean up
-            if response_count >= STANDARD_ELDERS_COUNT {
+            if response_count >= half_the_section {
                 // remove pending listener
                 let pending_transfers = self.session.pending_transfers.clone();
                 let _ =

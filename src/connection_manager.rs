@@ -37,7 +37,6 @@ use tokio::{
 use xor_name::XorName;
 
 static NUMBER_OF_RETRIES: usize = 3;
-pub static STANDARD_ELDERS_COUNT: usize = 5;
 
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
@@ -45,8 +44,6 @@ type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
 // channel for sending result of transfer validation
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
-
-//type ElderConnectionMap = HashSet<SocketAddr>;
 
 type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
 type PendingQueryResponses = Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>;
@@ -492,10 +489,12 @@ impl ConnectionManager {
             peers = session.elders.lock().await.clone();
         }
 
+        let peers_len = peers.len();
+
         debug!(
             "Sending bootstrap cmd from {} to {} peers..",
             endpoint.socket_addr(),
-            peers.len()
+            peers_len
         );
 
         for peer_addr in peers {
@@ -525,11 +524,11 @@ impl ConnectionManager {
         }
 
         // TODO: Do we need a timeout here to check sufficient time has passed + or sufficient connections?
-        let mut has_sufficent_connections = false;
+        let mut has_attempted_all_connections = false;
         let mut todo = tasks;
-        let mut elders = HashSet::new();
+        let mut new_elders = HashSet::new();
 
-        while !has_sufficent_connections {
+        while !has_attempted_all_connections {
             if todo.is_empty() {
                 warn!("No more elder connections to try");
                 break;
@@ -537,7 +536,7 @@ impl ConnectionManager {
 
             let (res, _idx, remaining_futures) = select_all(todo.into_iter()).await;
             if remaining_futures.is_empty() {
-                has_sufficent_connections = true;
+                has_attempted_all_connections = true;
             }
 
             todo = remaining_futures;
@@ -550,27 +549,27 @@ impl ConnectionManager {
 
                 if let Ok(socket_addr) = res {
                     info!("Connected to elder: {:?}", socket_addr);
-                    let _ = elders.insert(socket_addr);
+                    let _ = new_elders.insert(socket_addr);
                 }
             }
 
-            // TODO: this will effectively stop driving futures after we get 2...
-            // We should still let all progress... just without blocking
-            if elders.len() >= STANDARD_ELDERS_COUNT {
-                has_sufficent_connections = true;
+            if new_elders.len() >= peers_len {
+                has_attempted_all_connections = true;
             }
-            if elders.len() < STANDARD_ELDERS_COUNT {
-                warn!("Connected to only {:?} elders.", elders.len());
+
+            if new_elders.len() < peers_len {
+                warn!("Connected to only {:?} new_elders.", new_elders.len());
             }
-            if elders.len() < STANDARD_ELDERS_COUNT - 2 && has_sufficent_connections {
+
+            if new_elders.len() < peers_len - 2 && has_attempted_all_connections {
                 return Err(Error::InsufficientElderConnections);
             }
         }
 
-        trace!("Connected to {} Elders.", elders.len());
+        trace!("Connected to {} Elders.", new_elders.len());
         {
             let mut session_elders = session.elders.lock().await;
-            *session_elders = elders;
+            *session_elders = new_elders;
         }
 
         session.is_connecting_to_new_elders = false;
@@ -776,6 +775,11 @@ impl Session {
             signer,
             is_connecting_to_new_elders: false,
         })
+    }
+
+    /// Get the elders count of our connected section
+    pub async fn elders_count(&self) -> usize {
+        self.elders.lock().await.len()
     }
 
     pub fn client_public_key(&self) -> PublicKey {
