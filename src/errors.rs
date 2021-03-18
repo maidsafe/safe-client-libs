@@ -40,7 +40,7 @@ pub enum Error {
     #[error("Problem connecting to elder")]
     ElderConnection,
     /// Client has not gone trhough qp2p bootstrap process yet
-    #[error("Client has failed to bootstrap yet")]
+    #[error("Client has failed to bootstrap to a section yet")]
     NotBootstrapped,
     /// Could not connect to sufficient elder to retrieve reliable responses.
     #[error("Problem connecting to sufficient elder")]
@@ -57,6 +57,12 @@ pub enum Error {
     /// Could not query elder.
     #[error("Failed to obtain any response")]
     NoResponse,
+    /// No BLS section key known.
+    #[error("No BLS Section Key available")]
+    NoBlsSectionKey,
+    /// No section prefix found for session
+    #[error("We do not have a section prefix.")]
+    NoSectionPrefixKnown,
     /// No transfer validation listener .
     #[error("No transfer validation listener")]
     NoTransferValidationListener,

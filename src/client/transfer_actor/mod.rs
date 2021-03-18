@@ -158,7 +158,7 @@ impl Client {
             Err(error) => {
                 if !error
                     .to_string()
-                    .contains("No credits or debits found to sync to actor")
+                    .contains("Provided actor history could not be validated")
                 {
                     return Err(Error::from(error));
                 }

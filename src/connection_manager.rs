@@ -24,7 +24,7 @@ use sn_messaging::{
 };
 use std::{
     borrow::Borrow,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     net::SocketAddr,
     sync::Arc,
 };
@@ -34,7 +34,7 @@ use tokio::{
     sync::mpsc::{channel, Sender, UnboundedSender},
     task::JoinHandle,
 };
-use xor_name::XorName;
+use xor_name::{XorName, Prefix};
 
 static NUMBER_OF_RETRIES: usize = 3;
 
@@ -101,10 +101,8 @@ impl ConnectionManager {
         let msg_id = msg.id();
         let endpoint = session.endpoint()?.clone();
 
-        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
-
-        // let pending_queries = session.pending_queries.clone();
-
+        let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
+        
         let src_addr = endpoint.socket_addr();
         trace!(
             "Sending (from {}) command message {:?} w/ id: {:?}",
@@ -174,7 +172,8 @@ impl ConnectionManager {
             msg.id()
         );
         let endpoint = session.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
+        let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
+        
 
         let pending_transfers = session.pending_transfers.clone();
 
@@ -216,7 +215,8 @@ impl ConnectionManager {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(msg: &Message, session: &Session) -> Result<QueryResponse, Error> {
         let endpoint = session.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
+        let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
+        
 
         let pending_queries = session.pending_queries.clone();
 
@@ -445,7 +445,8 @@ impl ConnectionManager {
             debug!("Already attempting elder connections, dropping get_section call until that is complete.");
             return Ok(session);
         }
-        let elders: Vec<SocketAddr> = session.elders.lock().await.iter().cloned().collect();
+        let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
+        
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
@@ -497,7 +498,7 @@ impl ConnectionManager {
             peers_len
         );
 
-        for peer_addr in peers {
+        for (name, peer_addr) in peers {
             let endpoint = endpoint.clone();
             let msg = msg.clone();
             let task_handle = tokio::spawn(async move {
@@ -515,7 +516,7 @@ impl ConnectionManager {
                         attempts, peer_addr, connected
                     );
 
-                    result = Ok(peer_addr)
+                    result = Ok((name, peer_addr))
                 }
 
                 result
@@ -526,7 +527,7 @@ impl ConnectionManager {
         // TODO: Do we need a timeout here to check sufficient time has passed + or sufficient connections?
         let mut has_attempted_all_connections = false;
         let mut todo = tasks;
-        let mut new_elders = HashSet::new();
+        let mut new_elders = BTreeMap::new();
 
         while !has_attempted_all_connections {
             if todo.is_empty() {
@@ -547,9 +548,9 @@ impl ConnectionManager {
                     warn!("Failed to connect to Elder @ : {}", err);
                 });
 
-                if let Ok(socket_addr) = res {
-                    info!("Connected to elder: {:?}", socket_addr);
-                    let _ = new_elders.insert(socket_addr);
+                if let Ok((name, socket)) = res {
+                    info!("Connected to elder: {:?}", socket);
+                    let _ = new_elders.insert(name, socket);
                 }
             }
 
@@ -598,12 +599,19 @@ impl ConnectionManager {
                 }
                 Ok(session)
             }
-            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(addresses)) => {
+            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
                 {
+                    // HACK: Until we have XorName returned here too, we just add a junk
+                    // XorName so we can progress. This will be corrected as/when we get_section.
                     let mut session_elders = session.elders.lock().await;
+                    let mut temp_elders: BTreeMap<XorName, SocketAddr> = Default::default();
+                    for socket in elders {
+                        let _ = temp_elders.insert(XorName::random(), *socket);
+                    };
 
-                    *session_elders = addresses.iter().copied().collect();
+                    *session_elders = temp_elders;
+
                 }
 
                 Ok(session)
@@ -634,29 +642,30 @@ impl ConnectionManager {
             original_elders = session.elders.lock().await.clone();
         }
 
-        let elders = &info.elders;
+        let received_elders = info.elders.clone();
 
         // Obtain the addresses of the Elders
-        trace!("Updating session info! Elders: ({:?})", elders);
-        let elders_addrs: HashSet<SocketAddr> = elders
-            .iter()
-            .map(|(_, socket_addr)| socket_addr)
-            .copied()
-            .collect();
+        trace!("Updating session info! Elders: ({:?})", received_elders);
 
         {
+            /// Update session key set
             let mut keyset = session.section_key_set.lock().await;
             *keyset = Some(info.pk_set.clone());
         }
-        // let session_elders;
-        {
-            let mut session_elders = session.elders.lock().await;
 
-            // clear existing elder list.
-            *session_elders = elders_addrs.clone();
+        {
+            // update section prefix
+            let mut prefix = session.section_prefix.lock().await;
+            *prefix = Some(info.prefix);
         }
 
-        if original_elders != elders_addrs {
+        {
+            // Update session elders
+            let mut session_elders = session.elders.lock().await;
+            *session_elders = received_elders.clone();
+        }
+
+        if original_elders != received_elders {
             debug!(">>>>>>>>>>>>>>>>>>>");
             debug!(">>>>>>>>>>>>>>>>>>>");
             debug!(">>>>>>>>>>>>>>>>>>>");
@@ -749,8 +758,9 @@ pub struct Session {
     pub pending_queries: PendingQueryResponses,
     pub pending_transfers: PendingTransferValidations,
     pub endpoint: Option<Endpoint>,
-    pub elders: Arc<Mutex<HashSet<SocketAddr>>>,
+    pub elders: Arc<Mutex<BTreeMap<XorName, SocketAddr>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
+    pub section_prefix: Arc<Mutex<Option<Prefix>>>,
     pub signer: Signer,
     pub is_connecting_to_new_elders: bool,
 }
@@ -771,10 +781,19 @@ impl Session {
             pending_transfers: Arc::new(Mutex::new(HashMap::default())),
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),
-            elders: Arc::new(Mutex::new(HashSet::default())),
+            elders: Arc::new(Mutex::new(Default::default())),
+            section_prefix: Arc::new(Mutex::new(None)),
             signer,
             is_connecting_to_new_elders: false,
         })
+    }
+
+
+    pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
+        let elders = self.elders.lock().await;
+        let mut names = BTreeSet::new();
+        elders.keys().map(|key| names.insert(key.clone()));
+        names
     }
 
     /// Get the elders count of our connected section
@@ -807,6 +826,12 @@ impl Session {
             }
         }
     }
+
+    /// Get section's prefix
+    pub async fn section_prefix(&self) -> Option<Prefix> {
+        self.section_prefix.lock().await.clone()
+    }
+    
 
     pub async fn bootstrap_cmd(&self) -> Result<bytes::Bytes, Error> {
         let socketaddr_sig = self

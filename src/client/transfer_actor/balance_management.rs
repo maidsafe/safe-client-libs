@@ -363,14 +363,22 @@ mod tests {
         let mut balance = client.get_balance().await?;
 
         while balance != Token::from_str("110")? {
+
+            println!("FOUND BALANCE: {:?}", balance);
+
+
             sleep(Duration::from_millis(200)).await;
 
             balance = client.get_balance().await?;
         }
+
+        println!("SEND TOKENS");
         // 11 here allows us to more easily debug repeat credits due w/ simulated payouts from each elder
         let _ = client
             .send_tokens(wallet1, Token::from_str("11.0")?)
             .await?;
+
+            println!("after SEND TOKENS");
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
@@ -378,13 +386,20 @@ mod tests {
 
         // loop until correct
         while new_balance != desired_balance {
+
+            println!("FOUND BALANCE: {:?}, desired : {:?}", new_balance, desired_balance);
             sleep(Duration::from_millis(200)).await;
             new_balance = client.get_balance().await?;
         }
+
+        println!("after balance is correct TOKENS");
+
         // Assert that the receiver has been credited.
         let mut receiving_bal = receiving_client.get_balance().await?;
 
         let target_tokens = Token::from_str("21.0")?;
+
+        println!("checking target TOKENS");
 
         // loop until correct
         while receiving_bal != target_tokens {
