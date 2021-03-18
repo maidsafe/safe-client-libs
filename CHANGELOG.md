@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.50.2](https://github.com/maidsafe/sn_client/compare/v0.50.1...v0.50.2) (2021-03-18)
+
+
+### Features
+
+* **elders:** remove hard coded elder count ([41b986b](https://github.com/maidsafe/sn_client/commit/41b986ba38ca1b2a2ee3c4f130bad82b22c5d950))
+
 ### [0.50.1](https://github.com/maidsafe/sn_client/compare/v0.50.0...v0.50.1) (2021-03-16)
 
 
