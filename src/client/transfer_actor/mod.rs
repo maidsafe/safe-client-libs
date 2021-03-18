@@ -265,7 +265,8 @@ impl Client {
 
         let mut returned_errors = vec![];
         let mut response_count: usize = 0;
-        let half_the_section = self.session.elders_count().await / 2;
+        let elders_count = self.session.elders_count().await;
+        let half_the_section = elders_count / 2;
 
         loop {
             match receiver.recv().await {
@@ -325,7 +326,7 @@ impl Client {
             }
 
             // at any point if we've had enough responses in, let's clean up
-            if response_count >= half_the_section {
+            if response_count > half_the_section {
                 // remove pending listener
                 let pending_transfers = self.session.pending_transfers.clone();
                 let _ =

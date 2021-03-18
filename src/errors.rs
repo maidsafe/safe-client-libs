@@ -55,10 +55,10 @@ pub enum Error {
     #[error("Problem receiving query internally in sn_client")]
     QueryReceiverError,
     /// Could not query elder.
-    #[error("Failed to obtain a response")]
+    #[error("Failed to obtain any response")]
     NoResponse,
     /// No transfer validation listener .
-    #[error("Failed to obtain a response")]
+    #[error("No transfer validation listener")]
     NoTransferValidationListener,
     /// Unexpected message type receivied while joining.
     #[error("Unexpected message type receivied while joining: {0}")]
