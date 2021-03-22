@@ -363,9 +363,7 @@ mod tests {
         let mut balance = client.get_balance().await?;
 
         while balance != Token::from_str("110")? {
-
             println!("FOUND BALANCE: {:?}", balance);
-
 
             sleep(Duration::from_millis(200)).await;
 
@@ -378,7 +376,7 @@ mod tests {
             .send_tokens(wallet1, Token::from_str("11.0")?)
             .await?;
 
-            println!("after SEND TOKENS");
+        println!("after SEND TOKENS");
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
@@ -386,8 +384,10 @@ mod tests {
 
         // loop until correct
         while new_balance != desired_balance {
-
-            println!("FOUND BALANCE: {:?}, desired : {:?}", new_balance, desired_balance);
+            println!(
+                "FOUND BALANCE: {:?}, desired : {:?}",
+                new_balance, desired_balance
+            );
             sleep(Duration::from_millis(200)).await;
             new_balance = client.get_balance().await?;
         }

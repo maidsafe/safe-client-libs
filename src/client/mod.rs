@@ -40,7 +40,7 @@ use futures::lock::Mutex;
 use log::{debug, info, trace, warn};
 use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
-use sn_data_types::{Keypair, PublicKey, Token, SectionElders};
+use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
 use sn_messaging::{
     client::{Cmd, DataCmd, Message, Query, QueryResponse},
     MessageId,
@@ -142,15 +142,15 @@ impl Client {
             .await
             .clone()
             .ok_or(Error::NotBootstrapped)?;
-            let elder_names = session.get_elder_names().await;
-            let elders = SectionElders {
+        let elder_names = session.get_elder_names().await;
+        let elders = SectionElders {
             prefix: session
                 .section_prefix()
                 .await
                 .ok_or(Error::NoSectionPrefixKnown)?,
             names: elder_names,
             key_set: elder_pk_set,
-            };
+        };
 
         let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(
             keypair.clone(),

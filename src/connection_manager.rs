@@ -34,7 +34,7 @@ use tokio::{
     sync::mpsc::{channel, Sender, UnboundedSender},
     task::JoinHandle,
 };
-use xor_name::{XorName, Prefix};
+use xor_name::{Prefix, XorName};
 
 static NUMBER_OF_RETRIES: usize = 3;
 
@@ -102,7 +102,7 @@ impl ConnectionManager {
         let endpoint = session.endpoint()?.clone();
 
         let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
-        
+
         let src_addr = endpoint.socket_addr();
         trace!(
             "Sending (from {}) command message {:?} w/ id: {:?}",
@@ -173,7 +173,6 @@ impl ConnectionManager {
         );
         let endpoint = session.endpoint()?.clone();
         let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
-        
 
         let pending_transfers = session.pending_transfers.clone();
 
@@ -216,7 +215,6 @@ impl ConnectionManager {
     pub async fn send_query(msg: &Message, session: &Session) -> Result<QueryResponse, Error> {
         let endpoint = session.endpoint()?.clone();
         let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
-        
 
         let pending_queries = session.pending_queries.clone();
 
@@ -446,7 +444,6 @@ impl ConnectionManager {
             return Ok(session);
         }
         let elders: Vec<SocketAddr> = session.elders.lock().await.values().cloned().collect();
-        
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
@@ -608,10 +605,9 @@ impl ConnectionManager {
                     let mut temp_elders: BTreeMap<XorName, SocketAddr> = Default::default();
                     for socket in elders {
                         let _ = temp_elders.insert(XorName::random(), *socket);
-                    };
+                    }
 
                     *session_elders = temp_elders;
-
                 }
 
                 Ok(session)
@@ -788,7 +784,6 @@ impl Session {
         })
     }
 
-
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
         let elders = self.elders.lock().await;
         let mut names = BTreeSet::new();
@@ -831,7 +826,6 @@ impl Session {
     pub async fn section_prefix(&self) -> Option<Prefix> {
         self.section_prefix.lock().await.clone()
     }
-    
 
     pub async fn bootstrap_cmd(&self) -> Result<bytes::Bytes, Error> {
         let socketaddr_sig = self
