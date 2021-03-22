@@ -787,7 +787,9 @@ impl Session {
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
         let elders = self.elders.lock().await;
         let mut names = BTreeSet::new();
-        elders.keys().map(|key| names.insert(key.clone()));
+        for key in elders.keys() {
+            let _ = names.insert(*key);
+        }
         names
     }
 
@@ -824,7 +826,7 @@ impl Session {
 
     /// Get section's prefix
     pub async fn section_prefix(&self) -> Option<Prefix> {
-        self.section_prefix.lock().await.clone()
+        *self.section_prefix.lock().await
     }
 
     pub async fn bootstrap_cmd(&self) -> Result<bytes::Bytes, Error> {
