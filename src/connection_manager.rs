@@ -24,7 +24,7 @@ use sn_messaging::{
 };
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     net::SocketAddr,
     sync::Arc,
 };
@@ -644,7 +644,7 @@ impl ConnectionManager {
         trace!("Updating session info! Elders: ({:?})", received_elders);
 
         {
-            /// Update session key set
+            // Update session key set
             let mut keyset = session.section_key_set.lock().await;
             *keyset = Some(info.pk_set.clone());
         }
