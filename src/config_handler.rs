@@ -105,9 +105,19 @@ mod tests {
         // In the absence of a config file, the config handler
         // should initialize bootstrap_cache_dir only
         let config = Config::new(Some(&config_filepath), None);
+        // convert to string for assert
+        let mut str_path = path
+            .to_str()
+            .ok_or(anyhow::anyhow!("No path for to_str".to_string()))?
+            .to_string();
+        // normalise for mac
+        if str_path.ends_with("/") {
+            let _ = str_path.pop();
+        }
+
         let expected_config = Config {
             qp2p: QuicP2pConfig {
-                bootstrap_cache_dir: Some(path.display().to_string()),
+                bootstrap_cache_dir: Some(str_path),
                 ..Default::default()
             },
         };
