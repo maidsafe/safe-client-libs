@@ -854,7 +854,7 @@ impl Session {
         let _ = tokio::spawn(async move {
             while let Some((src, message)) = incoming_messages.next().await {
                 let message_type = WireMsg::deserialize(message)?;
-                warn!("Message received at listener from {:?}", &src);
+                trace!("Message received at listener from {:?}", &src);
                 let session_clone = session.clone();
                 session = match message_type {
                     MessageType::SectionInfo(msg) => {

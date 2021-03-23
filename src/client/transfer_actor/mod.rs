@@ -155,19 +155,14 @@ impl Client {
                     actor.apply(ActorEvent::TransfersSynched(transfers))?;
                 }
             }
-            Err(error) => {
-                if !error
-                    .to_string()
-                    .contains("Provided actor history could not be validated")
-                {
-                    return Err(Error::from(error));
-                }
 
+            Err(sn_transfers::Error::NoActorHistory) => {
                 warn!(
                     "No new transfer history  by TransferActor for pk: {:?}",
                     public_key
                 );
             }
+            Err(error) => return Err(Error::from(error)),
         }
 
         debug!("Current balance after GetHistory {:?}", actor.balance());
@@ -267,29 +262,38 @@ impl Client {
         let mut response_count: usize = 0;
         let elders_count = self.session.elders_count().await;
         let half_the_section = elders_count / 2;
-
         loop {
             match receiver.recv().await {
                 Some(event) => match event {
                     Ok(transfer_validated) => {
                         response_count += 1;
                         let mut actor = self.transfer_actor.lock().await;
+                        // pass the received validation in to our actor
                         match actor.receive(transfer_validated) {
                             Ok(result) => {
+                                // it's valid
                                 if let Some(validation) = result {
                                     actor.apply(ActorEvent::TransferValidationReceived(
                                         validation.clone(),
                                     ))?;
                                     info!("Transfer successfully validated.");
-                                    if let Some(dap) = validation.proof {
+                                    if let Some(tap) = validation.proof {
+                                        debug!("Transfer has proof.");
+
                                         let pending_transfers =
                                             self.session.pending_transfers.clone();
+                                        debug!(
+                                            "Pending transfers at this point: {:?}",
+                                            pending_transfers
+                                        );
+
                                         let _ = ConnectionManager::remove_pending_transfer_sender(
                                             &msg.id(),
                                             pending_transfers,
                                         )
-                                        .await?;
-                                        return Ok(dap);
+                                        .await;
+
+                                        return Ok(tap);
                                     }
                                 } else {
                                     info!("Aggregated given SignatureShare.");
@@ -304,19 +308,18 @@ impl Client {
                         returned_errors.push(e);
 
                         if returned_errors.len() > half_the_section {
+                            warn!("More than half the section have errored re: transfer");
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
+
                             let pending_transfers = self.session.pending_transfers.clone();
-                            if let Err(e) = ConnectionManager::remove_pending_transfer_sender(
+                            ConnectionManager::remove_pending_transfer_sender(
                                 &msg.id(),
                                 pending_transfers,
                             )
-                            .await
-                            {
-                                return Err(e);
-                            } else {
-                                return Err(error);
-                            }
+                            .await?;
+
+                            return Err(error);
                         }
 
                         continue;
