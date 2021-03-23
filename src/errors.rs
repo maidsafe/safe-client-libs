@@ -43,7 +43,9 @@ pub enum Error {
     #[error("Client has failed to bootstrap to a section yet")]
     NotBootstrapped,
     /// Could not connect to sufficient elder to retrieve reliable responses.
-    #[error("Problem connecting to sufficient elders. A supermajority of responses is unobtainable.")]
+    #[error(
+        "Problem connecting to sufficient elders. A supermajority of responses is unobtainable."
+    )]
     InsufficientElderConnections,
     /// Could not query elder.
     #[error("Problem receiving query via qp2p")]

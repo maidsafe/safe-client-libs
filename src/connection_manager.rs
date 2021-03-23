@@ -86,14 +86,17 @@ impl Session {
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(
-        &self,
-        msg: &Message,
-    ) -> Result<(), Error> {
+    pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
         let msg_id = msg.id();
         let endpoint = self.endpoint()?.clone();
 
-        let elders: Vec<SocketAddr> = self.elders.lock().await.values().cloned().collect();
+        let elders: Vec<SocketAddr> = self
+            .connected_elders
+            .lock()
+            .await
+            .values()
+            .cloned()
+            .collect();
 
         let src_addr = endpoint.socket_addr();
         trace!(
@@ -162,7 +165,13 @@ impl Session {
             msg.id()
         );
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.values().cloned().collect();
+        let elders: Vec<SocketAddr> = self
+            .connected_elders
+            .lock()
+            .await
+            .values()
+            .cloned()
+            .collect();
 
         let pending_transfers = self.pending_transfers.clone();
 
@@ -204,7 +213,13 @@ impl Session {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.values().cloned().collect();
+        let elders: Vec<SocketAddr> = self
+            .connected_elders
+            .lock()
+            .await
+            .values()
+            .cloned()
+            .collect();
 
         let pending_queries = self.pending_queries.clone();
 
@@ -289,12 +304,12 @@ impl Session {
         let mut vote_map = VoteMap::default();
         let mut received_errors = 0;
 
-        let threshold: usize = session.supermajority().await;
+        let threshold: usize = self.supermajority().await;
 
         trace!("Vote threshold is: {:?}", threshold);
 
-        if session.connected_elders_count().await < threshold {
-            return Err(Error::InsufficientElderConnections)
+        if self.connected_elders_count().await < threshold {
+            return Err(Error::InsufficientElderConnections);
         }
 
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
@@ -373,7 +388,13 @@ impl Session {
             debug!("Already attempting elder connections, dropping get_section call until that is complete.");
             return Ok(());
         }
-        let elders: Vec<SocketAddr> = self.all_known_elders.lock().await.values().cloned().collect();
+        let elders: Vec<SocketAddr> = self
+            .all_known_elders
+            .lock()
+            .await
+            .values()
+            .cloned()
+            .collect();
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
@@ -416,7 +437,7 @@ impl Session {
             peers = self.all_known_elders.lock().await.clone();
         }
 
-        let supermajority = session.supermajority().await;
+        let supermajority = self.supermajority().await;
 
         let peers_len = peers.len();
 
@@ -521,7 +542,7 @@ impl Session {
                 warn!("Message was interrupted due to {:?}. This will most likely need to be sent again.", error);
                 if let SectionInfoError::InvalidBootstrap(_) = error {
                     debug!("Attempting to connect to elders again");
-                    session = ConnectionManager::connect_to_elders(session).await?;
+                    self.connect_to_elders().await?;
                 }
 
                 if let SectionInfoError::TargetSectionInfoOutdated(info) = error {
