@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.51.1](https://github.com/maidsafe/sn_client/compare/v0.51.0...v0.51.1) (2021-03-23)
+
+
+### Bug Fixes
+
+* transfer listener cleanup should happen only once ([66454f7](https://github.com/maidsafe/sn_client/commit/66454f72e675e57d208688068c2f87d00c61fb03))
+
 ## [0.51.0](https://github.com/maidsafe/sn_client/compare/v0.50.3...v0.51.0) (2021-03-22)
 
 
