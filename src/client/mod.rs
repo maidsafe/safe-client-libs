@@ -32,7 +32,7 @@ pub use blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use crate::{
     config_handler::Config,
-    connection_manager::{ConnectionManager, Session, Signer},
+    connection_manager::{Session, Signer},
     errors::Error,
 };
 use crdts::Dot;
@@ -239,7 +239,7 @@ impl Client {
 
         let message = self.create_query_message(query).await?;
 
-        ConnectionManager::send_query(&message, &self.session).await
+        self.session.send_query(&message).await
     }
 
     // Build and sign Cmd Message Envelope
@@ -283,7 +283,7 @@ impl Client {
         };
         let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = ConnectionManager::send_cmd(&message, &self.session).await?;
+        let _ = self.session.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -300,11 +300,11 @@ pub async fn attempt_bootstrap(
 
     let signer = Signer::new(keypair);
 
-    let session = Session::new(qp2p_config, signer, notifier)?;
+    let mut session = Session::new(qp2p_config, signer, notifier)?;
     loop {
-        let res = ConnectionManager::bootstrap(session.clone()).await;
+        let res = session.bootstrap().await;
         match res {
-            Ok(session) => return Ok(session),
+            Ok(()) => return Ok(session),
             Err(err) => {
                 attempts += 1;
                 if attempts < 3 {

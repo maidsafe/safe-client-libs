@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::{connection_manager::ConnectionManager, errors::Error, Client};
+use crate::{errors::Error, Client};
 use log::{debug, trace};
 use sn_data_types::{
     PublicKey, Sequence, SequenceAddress, SequenceEntries, SequenceEntry, SequenceIndex,
@@ -222,7 +222,7 @@ impl Client {
         };
         let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = ConnectionManager::send_cmd(&message, &self.session).await?;
+        let _ = self.session.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }

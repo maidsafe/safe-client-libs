@@ -10,7 +10,7 @@ use sn_data_types::{PublicKey, SignedTransfer, Token, TransferAgreementProof};
 use sn_messaging::client::{Cmd, Event, Query, QueryResponse, TransferCmd, TransferQuery};
 use sn_transfers::{ActorEvent, TransferInitiated};
 
-use crate::{client::Client, connection_manager::ConnectionManager, errors::Error};
+use crate::{client::Client, errors::Error};
 
 use log::{debug, info, trace};
 
@@ -82,7 +82,7 @@ impl Client {
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
 
         let message = self.create_query_message(msg_contents).await?;
-        let res = ConnectionManager::send_query(&message, &self.session).await?;
+        let res = self.session.send_query(&message).await?;
 
         match res {
             QueryResponse::GetBalance(balance) => balance.map_err(Error::from),
@@ -182,7 +182,7 @@ impl Client {
             transfer_proof
         );
 
-        let _ = ConnectionManager::send_cmd(&message, &self.session).await?;
+        let _ = self.session.send_cmd(&message).await?;
 
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.

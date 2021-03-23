@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::{client::Client, connection_manager::ConnectionManager, errors::Error};
+use crate::{client::Client, errors::Error};
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
@@ -141,7 +141,7 @@ impl Client {
         let message = self.create_query_message(msg_contents).await?;
 
         // This is a normal response manager request. We want quorum on this for now...
-        let res = ConnectionManager::send_query(&message, &self.session).await?;
+        let res = self.session.send_query(&message).await?;
 
         let history = match res {
             QueryResponse::GetHistory(history) => history.map_err(Error::from),
@@ -185,7 +185,7 @@ impl Client {
 
         // This is a normal response manager request. We want quorum on this for now...
 
-        let res = ConnectionManager::send_query(&message, &self.session).await?;
+        let res = self.session.send_query(&message).await?;
 
         match res {
             QueryResponse::GetStoreCost(cost) => cost.map_err(Error::ErrorMessage),
@@ -256,7 +256,7 @@ impl Client {
         // let elders = self.session.elders.iter().cloned().collect();
         // let pending_transfers = self.session.pending_transfers.clone();
 
-        let _ = ConnectionManager::send_transfer_validation(&msg, sender, &self.session).await?;
+        let _ = self.session.send_transfer_validation(&msg, sender).await?;
 
         let mut returned_errors = vec![];
         let mut response_count: usize = 0;
@@ -279,20 +279,9 @@ impl Client {
                                     info!("Transfer successfully validated.");
                                     if let Some(tap) = validation.proof {
                                         debug!("Transfer has proof.");
-
-                                        let pending_transfers =
-                                            self.session.pending_transfers.clone();
-                                        debug!(
-                                            "Pending transfers at this point: {:?}",
-                                            pending_transfers
-                                        );
-
-                                        let _ = ConnectionManager::remove_pending_transfer_sender(
-                                            &msg.id(),
-                                            pending_transfers,
-                                        )
-                                        .await;
-
+                                        self.session
+                                            .remove_pending_transfer_sender(&msg.id())
+                                            .await?;
                                         return Ok(tap);
                                     }
                                 } else {
@@ -311,14 +300,9 @@ impl Client {
                             warn!("More than half the section have errored re: transfer");
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
-
-                            let pending_transfers = self.session.pending_transfers.clone();
-                            ConnectionManager::remove_pending_transfer_sender(
-                                &msg.id(),
-                                pending_transfers,
-                            )
-                            .await?;
-
+                            self.session
+                                .remove_pending_transfer_sender(&msg.id())
+                                .await?;
                             return Err(error);
                         }
 
@@ -331,10 +315,10 @@ impl Client {
             // at any point if we've had enough responses in, let's clean up
             if response_count > half_the_section {
                 // remove pending listener
-                let pending_transfers = self.session.pending_transfers.clone();
-                let _ =
-                    ConnectionManager::remove_pending_transfer_sender(&msg.id(), pending_transfers)
-                        .await?;
+                let _ = self
+                    .session
+                    .remove_pending_transfer_sender(&msg.id())
+                    .await?;
             }
         }
     }
