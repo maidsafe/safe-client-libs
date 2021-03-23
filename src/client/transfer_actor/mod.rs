@@ -260,8 +260,8 @@ impl Client {
 
         let mut returned_errors = vec![];
         let mut response_count: usize = 0;
-        let elders_count = self.session.elders_count().await;
-        let half_the_section = elders_count / 2;
+        let supermajority = self.session.supermajority().await;
+
         loop {
             match receiver.recv().await {
                 Some(event) => match event {
@@ -296,8 +296,10 @@ impl Client {
                         error!("Error receiving SignatureShare: {:?}", e);
                         returned_errors.push(e);
 
-                        if returned_errors.len() > half_the_section {
-                            warn!("More than half the section have errored re: transfer");
+                        if returned_errors.len() >= supermajority {
+                            warn!(
+                                "More than the supermajority of elders have errored re: transfer"
+                            );
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
                             self.session
@@ -313,7 +315,7 @@ impl Client {
             }
 
             // at any point if we've had enough responses in, let's clean up
-            if response_count > half_the_section {
+            if response_count >= supermajority {
                 // remove pending listener
                 let _ = self
                     .session

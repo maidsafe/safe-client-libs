@@ -89,8 +89,6 @@ impl Session {
     pub async fn send_cmd(
         &self,
         msg: &Message,
-        // endpoint: Endpoint,
-        // elders: Vec<SocketAddr>,
     ) -> Result<(), Error> {
         let msg_id = msg.id();
         let endpoint = self.endpoint()?.clone();
@@ -164,7 +162,7 @@ impl Session {
             msg.id()
         );
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self.elders.lock().await.values().cloned().collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.values().cloned().collect();
 
         let pending_transfers = self.pending_transfers.clone();
 
@@ -206,7 +204,7 @@ impl Session {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self.elders.lock().await.values().cloned().collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.values().cloned().collect();
 
         let pending_queries = self.pending_queries.clone();
 
@@ -371,7 +369,7 @@ impl Session {
             debug!("Already attempting elder connections, dropping get_section call until that is complete.");
             return Ok(());
         }
-        let elders: Vec<SocketAddr> = self.elders.lock().await.values().cloned().collect();
+        let elders: Vec<SocketAddr> = self.all_known_elders.lock().await.values().cloned().collect();
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
@@ -411,7 +409,7 @@ impl Session {
 
         let peers;
         {
-            peers = self.elders.lock().await.clone();
+            peers = self.all_known_elders.lock().await.clone();
         }
 
         let peers_len = peers.len();
@@ -493,7 +491,7 @@ impl Session {
 
         trace!("Connected to {} Elders.", new_elders.len());
         {
-            let mut session_elders = self.elders.lock().await;
+            let mut session_elders = self.connected_elders.lock().await;
             *session_elders = new_elders;
         }
 
@@ -513,7 +511,12 @@ impl Session {
             }
             SectionInfoMsg::RegisterEndUserError(error)
             | SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(error)) => {
-                error!("Message {:?} was interrupted due to {:?}. This will most likely need to be sent again.", msg, error);
+                warn!("Message was interrupted due to {:?}. This will most likely need to be sent again.", error);
+                if let SectionInfoError::InvalidBootstrap(_) = error {
+                    debug!("Attempting to connect to elders again");
+                    session = ConnectionManager::connect_to_elders(session).await?;
+                }
+
                 if let SectionInfoError::TargetSectionInfoOutdated(info) = error {
                     trace!("Updated network info: ({:?})", info);
                     self.update_session_info(info).await?;
@@ -525,13 +528,14 @@ impl Session {
                 {
                     // HACK: Until we have XorName returned here too, we just add a junk
                     // XorName so we can progress. This will be corrected as/when we get_section.
-                    let mut session_elders = self.elders.lock().await;
+                    // TODO: update as we merge lazy message changes wher actual XorName is supplied
+                    let mut known_elders = self.all_known_elders.lock().await;
                     let mut temp_elders: BTreeMap<XorName, SocketAddr> = Default::default();
                     for socket in elders {
                         let _ = temp_elders.insert(XorName::random(), *socket);
                     }
 
-                    *session_elders = temp_elders;
+                    *known_elders = temp_elders;
                 }
 
                 Ok(())
@@ -556,16 +560,19 @@ impl Session {
 
     /// Apply updated info to a network session, and trigger connections
     async fn update_session_info(&mut self, info: &SectionInfo) -> Result<(), Error> {
-        let original_elders;
+        let original_known_elders;
 
         {
-            original_elders = self.elders.lock().await.clone();
+            original_known_elders = self.all_known_elders.lock().await.clone();
         }
 
         let received_elders = info.elders.clone();
 
         // Obtain the addresses of the Elders
-        trace!("Updating session info! Elders: ({:?})", received_elders);
+        trace!(
+            "Updating session info! Known elders: ({:?})",
+            received_elders
+        );
 
         {
             // Update session key set
@@ -581,11 +588,11 @@ impl Session {
 
         {
             // Update session elders
-            let mut session_elders = self.elders.lock().await;
+            let mut session_elders = self.all_known_elders.lock().await;
             *session_elders = received_elders.clone();
         }
 
-        if original_elders != received_elders {
+        if original_known_elders != received_elders {
             debug!(">>>>>>>>>>>>>>>>>>>");
             debug!(">>>>>>>>>>>>>>>>>>>");
             debug!(">>>>>>>>>>>>>>>>>>>");
@@ -730,7 +737,10 @@ pub struct Session {
     pub pending_queries: PendingQueryResponses,
     pub pending_transfers: PendingTransferValidations,
     pub endpoint: Option<Endpoint>,
-    pub elders: Arc<Mutex<BTreeMap<XorName, SocketAddr>>>,
+    /// elders we've managed to connect to
+    pub connected_elders: Arc<Mutex<BTreeMap<XorName, SocketAddr>>>,
+    /// all elders we know about from SectionInfo messages
+    pub all_known_elders: Arc<Mutex<BTreeMap<XorName, SocketAddr>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
     pub section_prefix: Arc<Mutex<Option<Prefix>>>,
     pub signer: Signer,
@@ -753,15 +763,21 @@ impl Session {
             pending_transfers: Arc::new(Mutex::new(HashMap::default())),
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),
-            elders: Arc::new(Mutex::new(Default::default())),
+            connected_elders: Arc::new(Mutex::new(Default::default())),
+            all_known_elders: Arc::new(Mutex::new(Default::default())),
             section_prefix: Arc::new(Mutex::new(None)),
             signer,
             is_connecting_to_new_elders: false,
         })
     }
 
+    /// get the supermajority count based on number of known elders
+    pub async fn supermajority(&self) -> usize {
+        1 + self.connected_elders_count().await * 2 / 3
+    }
+
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
-        let elders = self.elders.lock().await;
+        let elders = self.connected_elders.lock().await;
         let mut names = BTreeSet::new();
         for key in elders.keys() {
             let _ = names.insert(*key);
@@ -770,8 +786,13 @@ impl Session {
     }
 
     /// Get the elders count of our connected section
-    pub async fn elders_count(&self) -> usize {
-        self.elders.lock().await.len()
+    pub async fn connected_elders_count(&self) -> usize {
+        self.connected_elders.lock().await.len()
+    }
+
+    /// Get the elders count of our section elders as provided by SectionInfo
+    pub async fn known_elders_count(&self) -> usize {
+        self.all_known_elders.lock().await.len()
     }
 
     pub fn client_public_key(&self) -> PublicKey {
