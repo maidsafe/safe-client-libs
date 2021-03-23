@@ -289,10 +289,14 @@ impl Session {
         let mut vote_map = VoteMap::default();
         let mut received_errors = 0;
 
-        // 2/3 of known elders
-        let threshold: usize = (elders.len() as f32 / 2_f32).ceil() as usize;
+        let threshold: usize = session.supermajority().await;
 
         trace!("Vote threshold is: {:?}", threshold);
+
+        if session.connected_elders_count().await < threshold {
+            return Err(Error::InsufficientElderConnections)
+        }
+
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
 
         // Let's await for all responses
@@ -412,12 +416,15 @@ impl Session {
             peers = self.all_known_elders.lock().await.clone();
         }
 
+        let supermajority = session.supermajority().await;
+
         let peers_len = peers.len();
 
         debug!(
-            "Sending bootstrap cmd from {} to {} peers..",
+            "Sending bootstrap cmd from {} to {} peers.., supermajority would be {:?} nodes",
             endpoint.socket_addr(),
-            peers_len
+            peers_len,
+            supermajority
         );
 
         for (name, peer_addr) in peers {
@@ -484,7 +491,7 @@ impl Session {
                 warn!("Connected to only {:?} new_elders.", new_elders.len());
             }
 
-            if new_elders.len() < peers_len - 2 && has_attempted_all_connections {
+            if new_elders.len() < supermajority && has_attempted_all_connections {
                 return Err(Error::InsufficientElderConnections);
             }
         }
