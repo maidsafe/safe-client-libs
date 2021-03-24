@@ -81,7 +81,7 @@ impl Client {
 
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
         let message = self.create_query_message(msg_contents).await?;
-        let res = self.session.send_query(&message).await?;
+        let res = self.session.send_query(message).await?;
 
         match res {
             QueryResponse::GetBalance(balance) => balance.map_err(Error::from),
@@ -180,7 +180,7 @@ impl Client {
             transfer_proof
         );
 
-        let _ = self.session.send_cmd(&message).await?;
+        let _ = self.session.send_cmd(message).await?;
 
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.

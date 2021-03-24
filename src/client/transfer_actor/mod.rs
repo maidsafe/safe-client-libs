@@ -141,7 +141,7 @@ impl Client {
         let message = self.create_query_message(msg_contents).await?;
 
         // This is a normal response manager request. We want quorum on this for now...
-        let res = self.session.send_query(&message).await?;
+        let res = self.session.send_query(message).await?;
 
         let history = match res {
             QueryResponse::GetHistory(history) => history.map_err(Error::from),
@@ -185,7 +185,7 @@ impl Client {
 
         // This is a normal response manager request. We want quorum on this for now...
 
-        let res = self.session.send_query(&message).await?;
+        let res = self.session.send_query(message).await?;
 
         match res {
             QueryResponse::GetStoreCost(cost) => cost.map_err(Error::ErrorMessage),
@@ -256,8 +256,8 @@ impl Client {
         // let elders = self.session.elders.iter().cloned().collect();
         // let pending_transfers = self.session.pending_transfers.clone();
 
-        let _ = self.session.send_transfer_validation(&msg, sender).await?;
-
+        let msg_id = msg.id();
+        let _ = self.session.send_transfer_validation(msg, sender).await?;
         let mut returned_errors = vec![];
         let mut response_count: usize = 0;
         let supermajority = self.session.supermajority().await;
@@ -280,7 +280,7 @@ impl Client {
                                     if let Some(tap) = validation.proof {
                                         debug!("Transfer has proof.");
                                         self.session
-                                            .remove_pending_transfer_sender(&msg.id())
+                                            .remove_pending_transfer_sender(&msg_id)
                                             .await?;
                                         return Ok(tap);
                                     }
@@ -302,9 +302,7 @@ impl Client {
                             );
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
-                            self.session
-                                .remove_pending_transfer_sender(&msg.id())
-                                .await?;
+                            self.session.remove_pending_transfer_sender(&msg_id).await?;
                             return Err(error);
                         }
 
@@ -317,10 +315,7 @@ impl Client {
             // at any point if we've had enough responses in, let's clean up
             if response_count >= supermajority {
                 // remove pending listener
-                let _ = self
-                    .session
-                    .remove_pending_transfer_sender(&msg.id())
-                    .await?;
+                let _ = self.session.remove_pending_transfer_sender(&msg_id).await?;
             }
         }
     }

@@ -24,7 +24,7 @@ use sn_messaging::{
 };
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     net::SocketAddr,
     sync::Arc,
 };
@@ -92,10 +92,7 @@ impl Session {
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(
-        &self,
-        msg: ProcessMsg,
-    ) -> Result<(), Error> {
+    pub async fn send_cmd(&self, msg: ProcessMsg) -> Result<(), Error> {
         let msg_id = msg.id();
         let endpoint = self.endpoint()?.clone();
 
@@ -110,12 +107,12 @@ impl Session {
         );
 
         let msg = Message::Process(msg);
-        let section_pk = session
+        let section_pk = self
             .section_key()
             .await?
             .bls()
             .ok_or(Error::NoBlsSectionKey)?;
-        let dest_section_name = XorName::from(session.client_public_key());
+        let dest_section_name = XorName::from(self.client_public_key());
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         // Send message to all Elders concurrently
@@ -180,12 +177,12 @@ impl Session {
 
         let pending_transfers = self.pending_transfers.clone();
 
-        let section_pk = session
+        let section_pk = self
             .section_key()
             .await?
             .bls()
             .ok_or(Error::NoBlsSectionKey)?;
-        let dest_section_name = XorName::from(session.client_public_key());
+        let dest_section_name = XorName::from(self.client_public_key());
         let msg = Message::Process(msg);
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
@@ -223,7 +220,7 @@ impl Session {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
+    pub async fn send_query(&self, msg: ProcessMsg) -> Result<QueryResponse, Error> {
         let endpoint = self.endpoint()?.clone();
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
 
@@ -232,12 +229,12 @@ impl Session {
         info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
 
         let msg = Message::Process(msg);
-        let section_pk = session
+        let section_pk = self
             .section_key()
             .await?
             .bls()
             .ok_or(Error::NoBlsSectionKey)?;
-        let dest_section_name = XorName::from(session.client_public_key());
+        let dest_section_name = XorName::from(self.client_public_key());
 
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
@@ -582,11 +579,15 @@ impl Session {
                 }
                 Ok(())
             }
-            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
+            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(new_elders)) => {
                 trace!("GetSectionResponse::Redirect, trying with provided elders");
                 {
-                    let mut session_elders = self.elders.lock().await;
-                    *session_elders = elders.iter().copied().collect();
+                    let mut elder_map = BTreeMap::new();
+                    let mut session_elders = self.all_known_elders.lock().await;
+                    for (xor, socket) in new_elders {
+                        let _ = elder_map.insert(*socket, *xor);
+                    }
+                    *session_elders = elder_map;
                 }
                 // Disconnect from peer that sent us the redirect, connect to the new elders provided and
                 // request the section info again.
@@ -868,11 +869,6 @@ impl Session {
         self.signer.public_key()
     }
 
-    /// Get section's prefix
-    pub async fn section_prefix(&self) -> Option<Prefix> {
-        self.section_prefix.lock().await.clone()
-    }
-
     pub fn endpoint(&self) -> Result<&Endpoint, Error> {
         match self.endpoint.borrow() {
             Some(endpoint) => Ok(endpoint),
@@ -881,6 +877,11 @@ impl Session {
                 Err(Error::NotBootstrapped)
             }
         }
+    }
+
+    /// Get section's prefix
+    pub async fn section_prefix(&self) -> Option<Prefix> {
+        *self.section_prefix.lock().await
     }
 
     pub async fn section_key(&self) -> Result<PublicKey, Error> {
@@ -929,7 +930,7 @@ impl Session {
                 let message_type = WireMsg::deserialize(message)?;
                 warn!("Message received at listener from {:?}", &src);
                 match message_type {
-                    MessageType::SectionInfo(msg) => {
+                    MessageType::SectionInfo { msg, .. } => {
                         match session.handle_sectioninfo_msg(msg, src).await {
                             Ok(()) => (),
                             Err(error) => {
@@ -941,14 +942,10 @@ impl Session {
                     }
                     MessageType::ClientMessage { msg, .. } => {
                         match msg {
-                            Message::Process(msg) => {
-                                session.handle_client_msg(msg, src).await
-                            }
+                            Message::Process(msg) => session.handle_client_msg(msg, src).await,
                             Message::ProcessingError(error) => {
                                 warn!("Processing error received. {:?}", error);
                                 // TODO: Handle lazy message errors
-
-                                session
                             }
                         }
                     }
