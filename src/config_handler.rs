@@ -111,7 +111,7 @@ mod tests {
             .ok_or(anyhow::anyhow!("No path for to_str".to_string()))?
             .to_string();
         // normalise for mac
-        if str_path.ends_with("/") {
+        if str_path.ends_with('/') {
             let _ = str_path.pop();
         }
 

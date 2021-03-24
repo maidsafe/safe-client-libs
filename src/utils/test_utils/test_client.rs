@@ -21,6 +21,7 @@ pub fn init_logger() {
         fmt()
             // NOTE: comment out this line for more compact (but less readable) log output.
             .pretty()
+            .with_thread_names(true)
             .with_env_filter(EnvFilter::from_default_env())
             .with_target(false)
             .init()
