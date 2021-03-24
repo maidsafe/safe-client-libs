@@ -44,9 +44,9 @@ pub enum Error {
     NotBootstrapped,
     /// Could not connect to sufficient elder to retrieve reliable responses.
     #[error(
-        "Problem connecting to sufficient elders. A supermajority of responses is unobtainable."
+        "Problem connecting to sufficient elders. A supermajority of responses is unobtainable. {0} were connected to"
     )]
-    InsufficientElderConnections,
+    InsufficientElderConnections(usize),
     /// Could not query elder.
     #[error("Problem receiving query via qp2p")]
     ReceivingQuery,

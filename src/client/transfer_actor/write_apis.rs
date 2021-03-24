@@ -49,7 +49,7 @@ mod tests {
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(Error::Transfer(TransfersError::InsufficientBalance)) => Ok(()),
             res => bail!(
-                "Unexpected response from mutation msg_contentsuest from 0 balance key: {:?}",
+                "Unexpected response from mutation msg_content from 0 balance key: {:?}",
                 res
             ),
         }

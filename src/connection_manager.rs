@@ -70,9 +70,6 @@ impl Session {
         self.get_section(Some(bootstrapped_peer)).await?;
         self.listen_to_incoming_messages(incoming_messages).await?;
 
-        // Let's now connect to all Elders
-        self.connect_to_elders().await?;
-
         let mut we_have_keyset = false;
 
         // bootstrap is not complete until we have pk set...
@@ -81,6 +78,9 @@ impl Session {
             sleep(Duration::from_millis(500)).await;
             we_have_keyset = self.section_key_set.lock().await.is_some();
         }
+
+        // Let's now connect to all Elders
+        self.connect_to_elders().await?;
 
         Ok(())
     }
@@ -307,9 +307,9 @@ impl Session {
         let threshold: usize = self.supermajority().await;
 
         trace!("Vote threshold is: {:?}", threshold);
-
+        let connected_elders_count = self.connected_elders_count().await;
         if self.connected_elders_count().await < threshold {
-            return Err(Error::InsufficientElderConnections);
+            return Err(Error::InsufficientElderConnections(connected_elders_count));
         }
 
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
@@ -428,6 +428,12 @@ impl Session {
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
+        let supermajority = self.supermajority().await;
+
+        if self.known_elders_count().await == 0 {
+            warn!("Not attempted to connect, insufficient elders yet known");
+            // this is not necessarily an error in case we didnt get elder info back yet
+        }
 
         let endpoint = self.endpoint()?;
         let msg = self.bootstrap_cmd().await?;
@@ -436,8 +442,6 @@ impl Session {
         {
             peers = self.all_known_elders.lock().await.clone();
         }
-
-        let supermajority = self.supermajority().await;
 
         let peers_len = peers.len();
 
@@ -513,7 +517,8 @@ impl Session {
             }
 
             if new_elders.len() < supermajority && has_attempted_all_connections {
-                return Err(Error::InsufficientElderConnections);
+                debug!("Attempted all connections and failed...");
+                return Err(Error::InsufficientElderConnections(new_elders.len()));
             }
         }
 
@@ -540,6 +545,7 @@ impl Session {
             SectionInfoMsg::RegisterEndUserError(error)
             | SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(error)) => {
                 warn!("Message was interrupted due to {:?}. This will most likely need to be sent again.", error);
+
                 if let SectionInfoError::InvalidBootstrap(_) = error {
                     debug!("Attempting to connect to elders again");
                     self.connect_to_elders().await?;
@@ -801,7 +807,7 @@ impl Session {
 
     /// get the supermajority count based on number of known elders
     pub async fn supermajority(&self) -> usize {
-        1 + self.connected_elders_count().await * 2 / 3
+        1 + self.known_elders_count().await * 2 / 3
     }
 
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
