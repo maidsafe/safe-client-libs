@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.51.3](https://github.com/maidsafe/sn_client/compare/v0.51.2...v0.51.3) (2021-03-24)
+
+
+### Features
+
+* use known vs all elders, supermajority ([c8ba2b5](https://github.com/maidsafe/sn_client/commit/c8ba2b57d53a0c2b9228223777829b8a9723b61c))
+* use supermajority for assesing responses ([8659f62](https://github.com/maidsafe/sn_client/commit/8659f62cea16ddf3ac840c11f6f23cf2e105f916))
+
+
+### Bug Fixes
+
+* dont connect to elders until we have had a full section response/pk ([a3ec50e](https://github.com/maidsafe/sn_client/commit/a3ec50e1be7110995e65234fa4f7888e9aac712e))
+
 ### [0.51.2](https://github.com/maidsafe/sn_client/compare/v0.51.1...v0.51.2) (2021-03-23)
 
 ### [0.51.1](https://github.com/maidsafe/sn_client/compare/v0.51.0...v0.51.1) (2021-03-23)
