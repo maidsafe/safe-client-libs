@@ -60,14 +60,20 @@ impl Session {
             endpoint,
             _incoming_connections,
             incoming_messages,
-            _disconnections,
+            mut disconnections,
             bootstrapped_peer,
         ) = self.qp2p.bootstrap().await?;
 
         self.endpoint = Some(endpoint.clone());
+        let connected_elders = self.connected_elders.clone();
+        let _ = tokio::spawn(async move {
+            if let Some(disconnected_peer) = disconnections.next().await {
+                let _ = connected_elders.lock().await.remove(&disconnected_peer);
+            }
+        });
 
         // Bootstrap and send a handshake request to
-        self.get_section(Some(bootstrapped_peer)).await?;
+        self.send_get_section_query(Some(bootstrapped_peer)).await?;
         self.listen_to_incoming_messages(incoming_messages).await?;
 
         let mut we_have_keyset = false;
@@ -90,13 +96,7 @@ impl Session {
         let msg_id = msg.id();
         let endpoint = self.endpoint()?.clone();
 
-        let elders: Vec<SocketAddr> = self
-            .connected_elders
-            .lock()
-            .await
-            .values()
-            .cloned()
-            .collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
 
         let src_addr = endpoint.socket_addr();
         trace!(
@@ -165,13 +165,7 @@ impl Session {
             msg.id()
         );
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self
-            .connected_elders
-            .lock()
-            .await
-            .values()
-            .cloned()
-            .collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
 
         let pending_transfers = self.pending_transfers.clone();
 
@@ -213,13 +207,7 @@ impl Session {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self
-            .connected_elders
-            .lock()
-            .await
-            .values()
-            .cloned()
-            .collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
 
         let pending_queries = self.pending_queries.clone();
 
@@ -383,18 +371,12 @@ impl Session {
 
     // Get section info. Optionally from one node (if we've just bootstrapped qp2p eg)
     // Otherwise we use all session nodes
-    async fn get_section(&self, initial_peer: Option<SocketAddr>) -> Result<(), Error> {
+    async fn send_get_section_query(&self, initial_peer: Option<SocketAddr>) -> Result<(), Error> {
         if self.is_connecting_to_new_elders {
-            debug!("Already attempting elder connections, dropping get_section call until that is complete.");
+            debug!("Already attempting elder connections, not sending section query until that is complete.");
             return Ok(());
         }
-        let elders: Vec<SocketAddr> = self
-            .all_known_elders
-            .lock()
-            .await
-            .values()
-            .cloned()
-            .collect();
+        let elders: Vec<SocketAddr> = self.all_known_elders.lock().await.keys().cloned().collect();
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
@@ -418,6 +400,13 @@ impl Session {
             }
         }
 
+        Ok(())
+    }
+
+    fn disconnect_from_old_elders(&self, old_elders: Vec<SocketAddr>) -> Result<(), Error> {
+        for elder in old_elders {
+            self.endpoint()?.disconnect_from(&elder)?;
+        }
         Ok(())
     }
 
@@ -452,7 +441,7 @@ impl Session {
             supermajority
         );
 
-        for (name, peer_addr) in peers {
+        for (peer_addr, name) in peers {
             let endpoint = endpoint.clone();
             let msg = msg.clone();
             let task_handle = tokio::spawn(async move {
@@ -470,7 +459,7 @@ impl Session {
                         attempts, peer_addr, connected
                     );
 
-                    result = Ok((name, peer_addr))
+                    result = Ok((peer_addr, name))
                 }
 
                 result
@@ -564,9 +553,9 @@ impl Session {
                     // XorName so we can progress. This will be corrected as/when we get_section.
                     // TODO: update as we merge lazy message changes wher actual XorName is supplied
                     let mut known_elders = self.all_known_elders.lock().await;
-                    let mut temp_elders: BTreeMap<XorName, SocketAddr> = Default::default();
+                    let mut temp_elders: BTreeMap<SocketAddr, XorName> = Default::default();
                     for socket in elders {
-                        let _ = temp_elders.insert(XorName::random(), *socket);
+                        let _ = temp_elders.insert(*socket, XorName::random());
                     }
 
                     *known_elders = temp_elders;
@@ -600,7 +589,12 @@ impl Session {
             original_known_elders = self.all_known_elders.lock().await.clone();
         }
 
-        let received_elders = info.elders.clone();
+        // Change this once sn_messaging is updated
+        let received_elders = info
+            .elders
+            .iter()
+            .map(|(name, addr)| (*addr, *name))
+            .collect::<BTreeMap<_, _>>();
 
         // Obtain the addresses of the Elders
         trace!(
@@ -627,11 +621,19 @@ impl Session {
         }
 
         if original_known_elders != received_elders {
-            debug!(">>>>>>>>>>>>>>>>>>>");
-            debug!(">>>>>>>>>>>>>>>>>>>");
-            debug!(">>>>>>>>>>>>>>>>>>>");
-            debug!(">>>>>>>>>>>>>>>>>>>");
-            debug!(">>>>>>>>>>>>>>>>>>> There are new elders to connect to!");
+            debug!("Connecting to new elders");
+            let new_elder_addresses = received_elders.keys().collect::<BTreeSet<_>>();
+            let old_elders = original_known_elders
+                .iter()
+                .filter_map(|(peer_addr, _)| {
+                    if !new_elder_addresses.contains(peer_addr) {
+                        Some(*peer_addr)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            self.disconnect_from_old_elders(old_elders)?;
             self.connect_to_elders().await
         } else {
             Ok(())
@@ -772,9 +774,9 @@ pub struct Session {
     pub pending_transfers: PendingTransferValidations,
     pub endpoint: Option<Endpoint>,
     /// elders we've managed to connect to
-    pub connected_elders: Arc<Mutex<BTreeMap<XorName, SocketAddr>>>,
+    pub connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
     /// all elders we know about from SectionInfo messages
-    pub all_known_elders: Arc<Mutex<BTreeMap<XorName, SocketAddr>>>,
+    pub all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
     pub section_prefix: Arc<Mutex<Option<Prefix>>>,
     pub signer: Signer,
@@ -812,11 +814,7 @@ impl Session {
 
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
         let elders = self.connected_elders.lock().await;
-        let mut names = BTreeSet::new();
-        for key in elders.keys() {
-            let _ = names.insert(*key);
-        }
-        names
+        elders.values().cloned().collect()
     }
 
     /// Get the elders count of our connected section
