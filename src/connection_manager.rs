@@ -403,8 +403,8 @@ impl Session {
         Ok(())
     }
 
-    fn disconnect_from_old_elders(&self, old_elders: Vec<SocketAddr>) -> Result<(), Error> {
-        for elder in old_elders {
+    fn disconnect_from_peers(&self, peers: Vec<SocketAddr>) -> Result<(), Error> {
+        for elder in peers {
             self.endpoint()?.disconnect_from(&elder)?;
         }
         Ok(())
@@ -523,7 +523,11 @@ impl Session {
     }
 
     /// Handle received network info messages
-    async fn handle_sectioninfo_msg(&mut self, msg: SectionInfoMsg) -> Result<(), Error> {
+    async fn handle_sectioninfo_msg(
+        &mut self,
+        msg: SectionInfoMsg,
+        src: SocketAddr,
+    ) -> Result<(), Error> {
         trace!("Handling network info message {:?}", msg);
 
         match &msg {
@@ -560,6 +564,11 @@ impl Session {
 
                     *known_elders = temp_elders;
                 }
+                // Disconnect from peer that sent us the redirect, connect to the new elders provided and
+                // request the section info again.
+                self.disconnect_from_peers(vec![src])?;
+                self.connect_to_elders().await?;
+                self.send_get_section_query(None).await?;
 
                 Ok(())
             }
@@ -598,13 +607,17 @@ impl Session {
 
         // Obtain the addresses of the Elders
         trace!(
-            "Updating session info! Known elders: ({:?})",
+            "Updating session info! Received elders: ({:?})",
             received_elders
         );
 
         {
             // Update session key set
             let mut keyset = self.section_key_set.lock().await;
+            if *keyset == Some(info.pk_set.clone()) {
+                trace!("We have already received this info.");
+                return Ok(());
+            }
             *keyset = Some(info.pk_set.clone());
         }
 
@@ -633,7 +646,7 @@ impl Session {
                     }
                 })
                 .collect::<Vec<_>>();
-            self.disconnect_from_old_elders(old_elders)?;
+            self.disconnect_from_peers(old_elders)?;
             self.connect_to_elders().await
         } else {
             Ok(())
@@ -886,7 +899,7 @@ impl Session {
                 warn!("Message received at listener from {:?}", &src);
                 match message_type {
                     MessageType::SectionInfo(msg) => {
-                        match session.handle_sectioninfo_msg(msg).await {
+                        match session.handle_sectioninfo_msg(msg, src).await {
                             Ok(()) => (),
                             Err(error) => {
                                 error!("Error handling network info message: {:?}", error);
