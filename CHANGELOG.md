@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.51.5](https://github.com/maidsafe/sn_client/compare/v0.51.4...v0.51.5) (2021-03-25)
+
+
+### Bug Fixes
+
+* **bootstrap:** fix bootstrap logic when we get SectionInfo::Redirect ([cd6a24e](https://github.com/maidsafe/sn_client/commit/cd6a24ef46936fde1879bbb6df7b4feeb3ade24d))
+
 ### [0.51.4](https://github.com/maidsafe/sn_client/compare/v0.51.3...v0.51.4) (2021-03-24)
 
 ### [0.51.3](https://github.com/maidsafe/sn_client/compare/v0.51.2...v0.51.3) (2021-03-24)
