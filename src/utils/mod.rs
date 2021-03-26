@@ -12,7 +12,7 @@ pub mod test_utils;
 
 use crate::errors::Error;
 use bincode::{deserialize, serialize};
-use miscreant::aead::Aead;
+use miscreant::Aead;
 use miscreant::Aes128SivAead;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::OsRng;
