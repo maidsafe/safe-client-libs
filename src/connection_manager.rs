@@ -24,7 +24,7 @@ use sn_messaging::{
 };
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     net::SocketAddr,
     sync::Arc,
 };
@@ -47,6 +47,55 @@ type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
 type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
 type PendingQueryResponses = Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>;
+
+#[derive(Clone)]
+struct RecentSentMessages {
+    ids: Arc<Mutex<VecDeque<MessageId>>>,
+    messages: Arc<Mutex<BTreeMap<MessageId, Message>>>,
+}
+
+const RECENT_SENT_MESSAGE_CACHE_LENGTH: usize = 100;
+
+impl RecentSentMessages {
+    pub fn new() -> Self {
+        Self {
+            ids: Arc::new(Mutex::new(VecDeque::with_capacity(100))),
+            messages: Arc::new(Mutex::new(BTreeMap::new())),
+        }
+    }
+
+    pub async fn push(&self, message: Message) -> Result<(), Error> {
+        let mut ids = self.ids.lock().await;
+        let mut messages = self.messages.lock().await;
+
+        let msg_id = message.id();
+
+        // first remove anything older than our cache length
+        if ids.len() == RECENT_SENT_MESSAGE_CACHE_LENGTH {
+            match ids.pop_front() {
+                Some(id) => {
+                    // remove oldest message
+                    let _ = messages.remove(&id);
+                }
+                None => {
+                    // nothing to do we can just add it.
+                }
+            };
+            //add new message
+            let _ = messages.insert(msg_id, message);
+
+            let _ = ids.push_back(msg_id);
+        }
+
+        Ok(())
+    }
+
+    pub async fn get(&self, msg_id: &MessageId) -> Option<Message> {
+        let messages = self.messages.lock().await;
+
+        messages.get(msg_id).map(|msg| msg.clone())
+    }
+}
 
 impl Session {
     /// Bootstrap to the network maintaining connections to several nodes.
@@ -105,6 +154,10 @@ impl Session {
             msg,
             msg_id
         );
+
+        // push the message to recent msg cache in case we need to resend it due to infra changes
+        self.recent_messages.push(msg.clone()).await?;
+
         let msg_bytes = msg.serialize()?;
 
         // Send message to all Elders concurrently
@@ -172,6 +225,8 @@ impl Session {
         let msg_bytes = msg.serialize()?;
 
         let msg_id = msg.id();
+        // push the message to recent msg cache in case we need to resend it due to infra changes
+        self.recent_messages.push(msg.clone()).await?;
 
         // block off the lock to avoid long await calls
         {
@@ -251,6 +306,9 @@ impl Session {
 
             let endpoint = endpoint.clone();
             endpoint.connect_to(&socket).await?;
+
+            // push the message to recent msg cache in case we need to resend it due to infra changes
+            self.recent_messages.push(msg.clone()).await?;
 
             let task_handle = tokio::spawn(async move {
                 // Retry queries that failed for connection issues
@@ -560,7 +618,10 @@ impl Session {
             }
             SectionInfoMsg::RegisterEndUserError(error)
             | SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(error)) => {
-                warn!("Message was interrupted due to {:?}. This will most likely need to be sent again.", error);
+                warn!(
+                    "Error registering end user, or with getting section response... {:?}.",
+                    error
+                );
 
                 if let SectionInfoError::InvalidBootstrap(_) = error {
                     debug!("Attempting to connect to elders again");
@@ -571,6 +632,7 @@ impl Session {
                     trace!("Updated network info: ({:?})", info);
                     self.update_session_info(info).await?;
                 }
+
                 Ok(())
             }
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
@@ -597,11 +659,35 @@ impl Session {
             }
             SectionInfoMsg::SectionInfoUpdate(update) => {
                 let correlation_id = update.correlation_id;
-                error!("MessageId {:?} was interrupted due to infrastructure updates. This will most likely need to be sent again. Update was : {:?}", correlation_id, update);
-                if let SectionInfoError::TargetSectionInfoOutdated(info) = update.clone().error {
-                    trace!("Updated network info: ({:?})", info);
-                    self.update_session_info(&info).await?;
+                warn!("MessageId {:?} was interrupted due to infrastructure updates. This will most likely need to be sent again. Update was : {:?}", correlation_id, update);
+                match update.clone().error {
+                    SectionInfoError::TargetSectionInfoOutdated(info) => {
+                        trace!(
+                            "Updated network info received. Updating session: ({:?})",
+                            info
+                        );
+                        self.update_session_info(&info).await?;
+                    }
+                    SectionInfoError::DkgInProgress => {
+                        warn!("DKG In progress");
+                    }
+                    _ => {
+                        warn!(
+                            "Unexpected SectionInfoUpdate, has not handled : {:?}",
+                            update.error
+                        )
+                    }
                 }
+
+                match self.recent_messages.get(&correlation_id).await {
+                    Some(msg) => {
+                        self.send_cmd(&msg).await;
+                    }
+                    None => {
+                        warn!("Message ID was sent but wasn't recent so has not been resent")
+                    }
+                }
+
                 Ok(())
             }
             SectionInfoMsg::RegisterEndUserCmd { .. } | SectionInfoMsg::GetSectionQuery(_) => {
@@ -799,6 +885,7 @@ pub struct Session {
     pub pending_queries: PendingQueryResponses,
     pub pending_transfers: PendingTransferValidations,
     pub endpoint: Option<Endpoint>,
+    recent_messages: RecentSentMessages,
     /// elders we've managed to connect to
     pub connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
     /// all elders we know about from SectionInfo messages
@@ -829,6 +916,7 @@ impl Session {
             all_known_elders: Arc::new(Mutex::new(Default::default())),
             section_prefix: Arc::new(Mutex::new(None)),
             signer,
+            recent_messages: RecentSentMessages::new(),
             is_connecting_to_new_elders: false,
         })
     }
