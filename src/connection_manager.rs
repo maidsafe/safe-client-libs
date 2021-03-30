@@ -934,7 +934,7 @@ impl Session {
                         match session.handle_sectioninfo_msg(msg, src).await {
                             Ok(()) => (),
                             Err(error) => {
-                                error!("Error handling network info message: {:?}", error);
+                                error!("Section info error received: {:?}", error);
                                 // that's enough
                                 // go back to using a clone of session before the error
                             }
@@ -946,6 +946,10 @@ impl Session {
                             Message::ProcessingError(error) => {
                                 warn!("Processing error received. {:?}", error);
                                 // TODO: Handle lazy message errors
+                            }
+                            Message::SupportingInfo(msg) => {
+                                warn!("Supporting info received. {:?}", msg);
+                                // TODO: Handle incoming supporting info
                             }
                         }
                     }
