@@ -26,7 +26,7 @@ pub mod blob_storage;
 
 // sn_transfers wrapper
 pub use self::map_info::MapInfo;
-pub use self::transfer_actor::{ClientTransferValidator, SafeTransferActor};
+pub use self::transfer_actor::SafeTransferActor;
 
 pub use blob_storage::{BlobStorage, BlobStorageDryRun};
 
@@ -65,9 +65,7 @@ pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 #[derive(Clone)]
 pub struct Client {
     keypair: Keypair,
-    /// Sequence CRDT replica
-    transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator, Keypair>>>,
-    //replicas_pk_set: PublicKeySet,
+    transfer_actor: Arc<Mutex<SafeTransferActor<Keypair>>>,
     simulated_farming_payout_dot: Dot<PublicKey>,
     session: Session,
     notification_receiver: Arc<Mutex<UnboundedReceiver<Error>>>,
@@ -134,8 +132,6 @@ impl Client {
 
         let simulated_farming_payout_dot = Dot::new(random_payment_pk, 0);
 
-        let validator = ClientTransferValidator {};
-
         let elder_pk_set = session
             .section_key_set
             .lock()
@@ -152,11 +148,7 @@ impl Client {
             key_set: elder_pk_set,
         };
 
-        let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(
-            keypair.clone(),
-            elders,
-            validator,
-        )));
+        let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(keypair.clone(), elders)));
 
         let mut client = Self {
             session,

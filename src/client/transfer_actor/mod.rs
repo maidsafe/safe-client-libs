@@ -15,7 +15,7 @@ use sn_data_types::{
 use sn_messaging::client::{
     Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery,
 };
-use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
+use sn_transfers::{ActorEvent, TransferInitiated};
 use tokio::sync::mpsc::channel;
 
 /// Module for token balance management
@@ -27,16 +27,6 @@ pub mod write_apis;
 
 /// Actual Transfer Actor
 pub use sn_transfers::TransferActor as SafeTransferActor;
-
-/// Simple client side validations
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClientTransferValidator {}
-
-impl ReplicaValidator for ClientTransferValidator {
-    fn is_valid(&self, _replica_group: PublicKey) -> bool {
-        true
-    }
-}
 
 impl Client {
     /// Get the client's current coin balance from the network
