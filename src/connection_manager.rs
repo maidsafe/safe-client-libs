@@ -252,12 +252,12 @@ impl Session {
                                 &socket
                             );
 
-                            if let Some(res) = receiver.recv().await {
-                                return Ok(res?);
+                            return if let Some(res) = receiver.recv().await {
+                                res
                             } else {
                                 error!("Error from query response, non received");
-                                return Err(Error::QueryReceiverError);
-                            }
+                                Err(Error::QueryReceiverError)
+                            };
                         }
                         Err(_error) => {
                             result = {
@@ -488,7 +488,7 @@ impl Session {
             if let Ok(elder_result) = res {
                 let res = elder_result.map_err(|err| {
                     // elder connection retires already occur above
-                    warn!("Failed to connect to Elder @ : {}", err);
+                    warn!("Failed to connect to Elder @ : {:?}", err);
                 });
 
                 if let Ok((name, socket)) = res {
