@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.52.0](https://github.com/maidsafe/sn_client/compare/v0.51.5...v0.52.0) (2021-04-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** the qp2p update includes a breaking change
+
+* **deps:** update qp2p version ([c91c555](https://github.com/maidsafe/sn_client/commit/c91c555a3fe3e4a2faf543134aa1ee322fbde158))
+
 ### [0.51.5](https://github.com/maidsafe/sn_client/compare/v0.51.4...v0.51.5) (2021-03-25)
 
 
