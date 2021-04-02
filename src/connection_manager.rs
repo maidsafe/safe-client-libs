@@ -491,9 +491,9 @@ impl Session {
                     warn!("Failed to connect to Elder @ : {:?}", err);
                 });
 
-                if let Ok((name, socket)) = res {
+                if let Ok((socket, name)) = res {
                     info!("Connected to elder: {:?}", socket);
-                    let _ = new_elders.insert(name, socket);
+                    let _ = new_elders.insert(socket, name);
                 }
             }
 
