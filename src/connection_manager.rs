@@ -208,8 +208,6 @@ impl Session {
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         let endpoint = self.endpoint()?.clone();
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
-
-        let msg = msg.clone();
         let pending_queries = self.pending_queries.clone();
 
         info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
