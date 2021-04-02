@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.52.2](https://github.com/maidsafe/sn_client/compare/v0.52.1...v0.52.2) (2021-04-02)
+
+
+### Bug Fixes
+
+* Logging during conn attempts fixed ([fdeb84f](https://github.com/maidsafe/sn_client/commit/fdeb84f3c125d5774f77d59293f4d1ff64e7e6e3))
+* TEMP_HACK: use random port to not throw conn pool out of whack ([311fa30](https://github.com/maidsafe/sn_client/commit/311fa301b5b932b5ed5ec03ff216360742b8624b))
+
 ### [0.52.1](https://github.com/maidsafe/sn_client/compare/v0.52.0...v0.52.1) (2021-04-01)
 
 ## [0.52.0](https://github.com/maidsafe/sn_client/compare/v0.51.5...v0.52.0) (2021-04-01)
