@@ -104,6 +104,7 @@ mod tests {
     // 3. Assert that `Config::new()` reads the default config written to disk.
     // 4. Verify that `Config::new()` returns the correct default config when no path is provided.
     #[test]
+    #[ignore]
     fn custom_config_path() -> Result<()> {
         init_logger();
 
