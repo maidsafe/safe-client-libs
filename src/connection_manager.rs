@@ -209,6 +209,7 @@ impl Session {
         let endpoint = self.endpoint()?.clone();
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
 
+        let msg = msg.clone();
         let pending_queries = self.pending_queries.clone();
 
         info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
@@ -218,12 +219,38 @@ impl Session {
         // and we try to find a majority on the responses
         let mut tasks = Vec::default();
 
+        let mut pending_sending = vec![];
+
+        // set up listeners
         for socket in elders.clone() {
             // Create a new stream here to not have to worry about filtering replies
             let msg_id = msg.id();
             let msg = msg.clone();
+            let pending_queries = pending_queries.clone();
+
+            let (sender, receiver) = channel::<Result<QueryResponse, Error>>(7);
+
+            debug!(
+                "Inserting query listener for socket {:?}, and msg_id {:?}",
+                socket, msg_id
+            );
+
+            let _ = pending_queries
+                .lock()
+                .await
+                .insert((socket, msg_id), sender);
+
+            pending_sending.push((socket, msg_id, msg, receiver));
+        }
+
+        debug!("All listeners set up for the query");
+
+        // two loops so we have all listeners set up first
+        for (socket, msg_id, message, mut receiver) in pending_sending {
             let msg_bytes_clone = msg_bytes.clone();
             let pending_queries = pending_queries.clone();
+            let msg = message;
+
             let endpoint = endpoint.clone();
             endpoint.connect_to(&socket).await?;
 
@@ -236,14 +263,6 @@ impl Session {
                 while !done_trying {
                     let msg_bytes_clone = msg_bytes_clone.clone();
 
-                    let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
-                    let _ = pending_queries
-                        .lock()
-                        .await
-                        .insert((socket, msg_id), sender);
-
-                    // TODO: we need to remove the msg_id from
-                    // pending_queries upon any failure below
                     match endpoint.send_message(msg_bytes_clone, &socket).await {
                         Ok(()) => {
                             trace!(
@@ -260,9 +279,13 @@ impl Session {
                             };
                         }
                         Err(_error) => {
+                            let _ = pending_queries
+                                .clone()
+                                .lock()
+                                .await
+                                .remove(&(socket, msg_id));
                             result = {
                                 error!("Error sending query message");
-                                // TODO: remove it from the pending_query_responses then
                                 Err(Error::SendingQuery)
                             }
                         }
@@ -297,6 +320,7 @@ impl Session {
         trace!("Vote threshold is: {:?}", threshold);
         let connected_elders_count = self.connected_elders_count().await;
         if self.connected_elders_count().await < threshold {
+            error!("Not enough elder conns");
             return Err(Error::InsufficientElderConnections(connected_elders_count));
         }
 
@@ -307,6 +331,7 @@ impl Session {
         let mut todo = tasks;
 
         while !has_elected_a_response {
+            debug!("Still not chosen a response....");
             if todo.is_empty() {
                 warn!("No more connections to try");
                 break;
@@ -753,22 +778,12 @@ fn select_best_of_the_rest_response(
             trace!("Reselecting winner, with {:?} votes: {:?}", votes, message);
 
             most_popular_response = (Some(message.clone()), *votes)
-        } else {
-            // TODO: check w/ farming we get a proper history returned w /matching responses.
-            if let QueryResponse::GetHistory(Ok(history)) = &message {
-                // if we're not more popular but in simu payout mode, check if we have more history...
-                if cfg!(feature = "simulated-payouts") && votes == &most_popular_response.1 {
-                    if let Some(QueryResponse::GetHistory(Ok(popular_history))) =
-                        &most_popular_response.0
-                    {
-                        if history.len() > popular_history.len() {
-                            trace!("GetHistory response received in Simulated Payouts... choosing longest history. {:?}", history);
-                            most_popular_response = (Some(message.clone()), *votes)
-                        }
-                    }
-                }
-            }
         }
+
+        trace!(
+            "Current most popular response is {:?}",
+            most_popular_response.0
+        );
     }
 
     if number_of_responses > threshold {

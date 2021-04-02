@@ -30,6 +30,7 @@ build-tests/
 
 # Manual
 .cargo/
+*.log 
 
 # Misc
 packages/
