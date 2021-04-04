@@ -72,18 +72,12 @@ impl RecentSentMessages {
 
         // first remove anything older than our cache length
         if ids.len() == RECENT_SENT_MESSAGE_CACHE_LENGTH {
-            match ids.pop_front() {
-                Some(id) => {
-                    // remove oldest message
-                    let _ = messages.remove(&id);
-                }
-                None => {
-                    // nothing to do we can just add it.
-                }
+            if let Some(id) = ids.pop_front() {
+                // remove oldest message
+                let _ = messages.remove(&id);
             };
             //add new message
             let _ = messages.insert(msg_id, message);
-
             let _ = ids.push_back(msg_id);
         }
 
@@ -93,7 +87,7 @@ impl RecentSentMessages {
     pub async fn get(&self, msg_id: &MessageId) -> Option<Message> {
         let messages = self.messages.lock().await;
 
-        messages.get(msg_id).map(|msg| msg.clone())
+        messages.get(msg_id).cloned()
     }
 }
 
