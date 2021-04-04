@@ -231,7 +231,7 @@ impl Client {
 
         let message = self.create_query_message(query).await?;
 
-        self.session.send_query(&message).await
+        self.session.send_and_listen_for_response(&message).await
     }
 
     // Build and sign Cmd Message Envelope
@@ -275,7 +275,10 @@ impl Client {
         };
         let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = self.session.send_cmd(&message).await?;
+        let _ = self
+            .session
+            .send_without_listening_for_response(&message)
+            .await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }

@@ -141,7 +141,7 @@ impl Session {
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
+    pub async fn send_without_listening_for_response(&self, msg: &Message) -> Result<(), Error> {
         let msg_id = msg.id();
         let endpoint = self.endpoint()?.clone();
 
@@ -260,7 +260,10 @@ impl Session {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
+    pub async fn send_and_listen_for_response(
+        &self,
+        msg: &Message,
+    ) -> Result<QueryResponse, Error> {
         let endpoint = self.endpoint()?.clone();
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
         let pending_queries = self.pending_queries.clone();
@@ -681,7 +684,8 @@ impl Session {
 
                 match self.recent_messages.get(&correlation_id).await {
                     Some(msg) => {
-                        self.send_cmd(&msg).await;
+                        info!("Message {:?} was re sent", msg.id());
+                        self.send_without_listening_for_response(&msg).await?;
                     }
                     None => {
                         warn!("Message ID was sent but wasn't recent so has not been resent")

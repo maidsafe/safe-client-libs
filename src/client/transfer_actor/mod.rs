@@ -131,7 +131,7 @@ impl Client {
         let message = self.create_query_message(msg_contents).await?;
 
         // This is a normal response manager request. We want quorum on this for now...
-        let res = self.session.send_query(&message).await?;
+        let res = self.session.send_and_listen_for_response(&message).await?;
 
         let history = match res {
             QueryResponse::GetHistory(history) => history.map_err(Error::from),
@@ -175,7 +175,7 @@ impl Client {
 
         // This is a normal response manager request. We want quorum on this for now...
 
-        let res = self.session.send_query(&message).await?;
+        let res = self.session.send_and_listen_for_response(&message).await?;
 
         match res {
             QueryResponse::GetStoreCost(cost) => cost.map_err(Error::ErrorMessage),
