@@ -121,7 +121,9 @@ impl Client {
 
         let (notification_sender, notification_receiver) = unbounded_channel::<Error>();
 
-        let qp2p_config = Config::new(config_file_path, bootstrap_config).qp2p;
+        let mut qp2p_config = Config::new(config_file_path, bootstrap_config).qp2p;
+        // We use feature `no-igd` so this will use the echo service only
+        qp2p_config.forward_port = true;
 
         // Create the connection manager
         let session = attempt_bootstrap(qp2p_config, keypair.clone(), notification_sender).await?;
