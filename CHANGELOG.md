@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.52.7](https://github.com/maidsafe/sn_client/compare/v0.52.6...v0.52.7) (2021-04-07)
+
+
+### Bug Fixes
+
+* **bootstrap:** reverting previous change to again wrap endpoint.connect_to() with a timeout ([0d51c57](https://github.com/maidsafe/sn_client/commit/0d51c57bba21b5ef914576d537db5ba3ac6fddc7))
+
 ### [0.52.6](https://github.com/maidsafe/sn_client/compare/v0.52.5...v0.52.6) (2021-04-07)
 
 ### [0.52.5](https://github.com/maidsafe/sn_client/compare/v0.52.4...v0.52.5) (2021-04-07)
