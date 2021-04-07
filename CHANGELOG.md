@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.52.4](https://github.com/maidsafe/sn_client/compare/v0.52.3...v0.52.4) (2021-04-07)
+
+
+### Bug Fixes
+
+* **connection_manager:** set forward-port to true to use public address ([0e5a21f](https://github.com/maidsafe/sn_client/commit/0e5a21f0642952390982d69d25e6c2781c039c04))
+
 ### [0.52.3](https://github.com/maidsafe/sn_client/compare/v0.52.2...v0.52.3) (2021-04-02)
 
 
