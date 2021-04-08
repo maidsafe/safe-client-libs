@@ -13,6 +13,7 @@ mod tokens;
 
 use anyhow::{anyhow, Context, Result};
 use dirs_next::home_dir;
+use std::path::Path;
 use std::{collections::HashSet, fs::File, io::BufReader, net::SocketAddr};
 #[cfg(test)]
 pub use test_client::{create_test_client, create_test_client_with, init_logger};
@@ -25,7 +26,7 @@ const GENESIS_CONN_INFO_FILEPATH: &str = ".safe/node/node_connection_info.config
 /// Read local network bootstrapping/connection information
 pub fn read_network_conn_info() -> Result<HashSet<SocketAddr>> {
     let user_dir = home_dir().ok_or_else(|| anyhow!("Could not fetch home directory"))?;
-    let conn_info_path = user_dir.join(GENESIS_CONN_INFO_FILEPATH);
+    let conn_info_path = user_dir.join(Path::new(GENESIS_CONN_INFO_FILEPATH));
 
     let file = File::open(&conn_info_path).with_context(|| {
         format!(
