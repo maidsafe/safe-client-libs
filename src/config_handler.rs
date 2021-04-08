@@ -14,7 +14,7 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{self, BufReader},
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::SocketAddr,
     path::Path,
 };
 
@@ -50,15 +50,6 @@ impl Config {
             debug!("Bootstrapping contacts overriden with: {:?}", contacts);
             qp2p.hard_coded_contacts = contacts;
         }
-
-        let random_port_to_attempt =
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0).port();
-
-        debug!(
-            "HACK: using a random port of {:?} to not confuse qp2p conn pooling",
-            qp2p.local_port
-        );
-        qp2p.local_port = Some(random_port_to_attempt);
 
         Self { qp2p }
     }
