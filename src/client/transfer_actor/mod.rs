@@ -198,12 +198,16 @@ impl Client {
         let section_key = self.session.section_key().await?;
 
         let cost_of_put = self.get_store_cost(bytes).await?;
+        info!(
+            "Current store cost reported by the network: {}",
+            cost_of_put
+        );
 
         let initiated = self
             .transfer_actor
             .lock()
             .await
-            .transfer(cost_of_put, section_key, "asdf".to_string())?
+            .transfer(cost_of_put, section_key, "".to_string())?
             .ok_or(Error::NoTransferEventsForLocalActor)?;
         let signed_transfer = SignedTransfer {
             debit: initiated.signed_debit,
