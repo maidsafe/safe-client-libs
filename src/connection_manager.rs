@@ -398,10 +398,10 @@ impl Session {
     // Otherwise we use all session nodes
     async fn send_get_section_query(&self, initial_peer: Option<SocketAddr>) -> Result<(), Error> {
         if self.is_connecting_to_new_elders {
-            debug!("Already attempting elder connections, not sending section query until that is complete.");
+            // This should ideally be unreachable code. Leaving it while this is a WIP
+            error!("Already attempting elder connections, not sending section query until that is complete.");
             return Ok(());
         }
-        let elders: Vec<SocketAddr> = self.all_known_elders.lock().await.keys().cloned().collect();
 
         // 1. We query the network for section info.
         trace!("Querying for section info from bootstrapped node...");
@@ -415,9 +415,11 @@ impl Session {
                 .send_message(msg, &bootstrapped_peer)
                 .await?;
         } else {
+            let elders: Vec<SocketAddr> =
+                self.all_known_elders.lock().await.keys().cloned().collect();
             trace!("Bootstrapping with contacts... {:?}", elders);
             debug!(">>>>> connecting to session's elders");
-            for socket in elders.clone() {
+            for socket in elders {
                 let msg = msg.clone();
                 let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
                 endpoint.connect_to(&socket).await?;
@@ -583,24 +585,13 @@ impl Session {
                 Ok(())
             }
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
-                trace!("GetSectionResponse::Redirect, trying with provided elders");
-                {
-                    // HACK: Until we have XorName returned here too, we just add a junk
-                    // XorName so we can progress. This will be corrected as/when we get_section.
-                    // TODO: update as we merge lazy message changes wher actual XorName is supplied
-                    let mut known_elders = self.all_known_elders.lock().await;
-                    let mut temp_elders: BTreeMap<SocketAddr, XorName> = Default::default();
-                    for socket in elders {
-                        let _ = temp_elders.insert(*socket, XorName::random());
-                    }
-
-                    *known_elders = temp_elders;
-                }
+                trace!("GetSectionResponse::Redirect, reboostrapping with provided peers");
                 // Disconnect from peer that sent us the redirect, connect to the new elders provided and
                 // request the section info again.
                 self.disconnect_from_peers(vec![src])?;
-                self.connect_to_elders().await?;
-                self.send_get_section_query(None).await?;
+                let endpoint = self.endpoint()?.clone();
+                let boostrapped_peer = self.qp2p.rebootstrap(&endpoint, elders).await?;
+                self.send_get_section_query(Some(boostrapped_peer)).await?;
 
                 Ok(())
             }
@@ -667,7 +658,8 @@ impl Session {
 
         if original_known_elders != received_elders {
             debug!("Connecting to new elders");
-            let new_elder_addresses = received_elders.keys().collect::<BTreeSet<_>>();
+            let new_elder_addresses = received_elders.keys().cloned().collect::<BTreeSet<_>>();
+            let updated_contacts = new_elder_addresses.iter().cloned().collect::<Vec<_>>();
             let old_elders = original_known_elders
                 .iter()
                 .filter_map(|(peer_addr, _)| {
@@ -679,6 +671,7 @@ impl Session {
                 })
                 .collect::<Vec<_>>();
             self.disconnect_from_peers(old_elders)?;
+            self.qp2p.update_bootstrap_cache(&updated_contacts)?;
             self.connect_to_elders().await
         } else {
             Ok(())
@@ -826,7 +819,7 @@ impl Session {
     ) -> Result<Self, Error> {
         debug!("QP2p config: {:?}", qp2p_config);
 
-        let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), false)?;
+        let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), true)?;
         Ok(Session {
             qp2p,
             notifier,
