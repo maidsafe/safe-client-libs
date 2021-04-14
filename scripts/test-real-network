@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -e -x
-
-# create and retrieve tests run separately
-cargo test --release  -- --skip retrieve
