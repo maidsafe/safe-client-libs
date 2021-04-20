@@ -10,7 +10,7 @@ use super::Client;
 use async_trait::async_trait;
 use log::trace;
 use self_encryption::{SelfEncryptionError, Storage};
-use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob};
+use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob, PublicKey};
 use xor_name::{XorName, XOR_NAME_LEN};
 
 /// Network storage is the concrete type which self_encryption crate will use
@@ -18,13 +18,13 @@ use xor_name::{XorName, XOR_NAME_LEN};
 #[derive(Clone)]
 pub struct BlobStorage {
     client: Client,
-    published: bool,
+    public: bool,
 }
 
 impl BlobStorage {
     /// Create a new BlobStorage instance.
-    pub fn new(client: Client, published: bool) -> Self {
-        Self { client, published }
+    pub fn new(client: Client, public: bool) -> Self {
+        Self { client, public }
     }
 }
 
@@ -45,7 +45,7 @@ impl Storage for BlobStorage {
             XorName(temp)
         };
 
-        let address = if self.published {
+        let address = if self.public {
             BlobAddress::Public(name)
         } else {
             BlobAddress::Private(name)
@@ -72,9 +72,9 @@ impl Storage for BlobStorage {
             XorName(temp)
         };
 
-        let address = if self.published {
+        let address = if self.public {
             return Err(SelfEncryptionError::Generic(
-                "Cannot delete on a published storage".to_owned(),
+                "Cannot delete on a public storage".to_owned(),
             ));
         } else {
             BlobAddress::Private(name)
@@ -88,7 +88,7 @@ impl Storage for BlobStorage {
 
     async fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), SelfEncryptionError> {
         trace!("Self encrypt invoked PutBlob.");
-        let blob: Blob = if self.published {
+        let blob: Blob = if self.public {
             PublicBlob::new(data).into()
         } else {
             PrivateBlob::new(data, self.client.public_key().await).into()
@@ -100,7 +100,7 @@ impl Storage for BlobStorage {
     }
 
     async fn generate_address(&self, data: &[u8]) -> Result<Vec<u8>, SelfEncryptionError> {
-        let blob: Blob = if self.published {
+        let blob: Blob = if self.public {
             PublicBlob::new(data.to_vec()).into()
         } else {
             PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
@@ -113,14 +113,13 @@ impl Storage for BlobStorage {
 /// to put or get data from the network.
 #[derive(Clone)]
 pub struct BlobStorageDryRun {
-    client: Client,
-    published: bool,
+    privately_owned: Option<PublicKey>,
 }
 
 impl BlobStorageDryRun {
     /// Create a new BlobStorage instance.
-    pub fn new(client: Client, published: bool) -> Self {
-        Self { client, published }
+    pub fn new(privately_owned: Option<PublicKey>) -> Self {
+        Self { privately_owned }
     }
 }
 
@@ -147,11 +146,12 @@ impl Storage for BlobStorageDryRun {
     }
 
     async fn generate_address(&self, data: &[u8]) -> Result<Vec<u8>, SelfEncryptionError> {
-        let blob: Blob = if self.published {
-            PublicBlob::new(data.to_vec()).into()
+        let blob: Blob = if let Some(owner) = self.privately_owned {
+            PrivateBlob::new(data.to_vec(), owner).into()
         } else {
-            PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
+            PublicBlob::new(data.to_vec()).into()
         };
+
         Ok(blob.name().0.to_vec())
     }
 }

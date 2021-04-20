@@ -6,16 +6,16 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::errors::Error;
-use crate::Client;
+use crate::{
+    client::blob_storage::{BlobStorage, BlobStorageDryRun},
+    errors::Error,
+    Client,
+};
 use bincode::{deserialize, serialize};
 use log::{info, trace};
-use serde::{Deserialize, Serialize};
-
-use crate::client::blob_storage::{BlobStorage, BlobStorageDryRun};
-
 use self_encryption::{DataMap, SelfEncryptor};
-use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob};
+use serde::{Deserialize, Serialize};
+use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob, PublicKey};
 use sn_messaging::client::{BlobRead, BlobWrite, DataCmd, DataQuery, Query, QueryResponse};
 
 #[derive(Serialize, Deserialize)]
@@ -67,11 +67,11 @@ impl Client {
         trace!("Fetch Blob");
 
         let data = self.fetch_blob_from_network(address).await?;
-        let published = address.is_public();
+        let public = address.is_public();
         let data_map = self.unpack(data).await?;
 
         let raw_data = self
-            .read_using_data_map(data_map, published, position, len)
+            .read_using_data_map(data_map, public, position, len)
             .await?;
 
         Ok(raw_data)
@@ -138,17 +138,16 @@ impl Client {
         self.create_new_blob(data, false).await
     }
 
-    async fn create_new_blob(&self, data: &[u8], published: bool) -> Result<BlobAddress, Error> {
-        let data_map = self.write_to_network(data, published).await?;
+    async fn create_new_blob(&self, data: &[u8], public: bool) -> Result<BlobAddress, Error> {
+        let data_map = self.write_to_network(data, public).await?;
 
-        let data = serialize(&DataMapLevel::Root(data_map))?;
+        let blob_content = serialize(&DataMapLevel::Root(data_map))?;
+        let blob = self.pack(blob_content, public).await?;
+        let blob_address = *blob.address();
 
-        let data_map_blob = self.pack(data, published).await?;
-        let data_map_address = *data_map_blob.address();
+        self.store_blob_on_network(blob).await?;
 
-        self.store_blob_on_network(data_map_blob).await?;
-
-        Ok(data_map_address)
+        Ok(blob_address)
     }
 
     pub(crate) async fn fetch_blob_from_network(
@@ -239,22 +238,50 @@ impl Client {
         }
     }
 
-    /// Uses self_encryption to generated an encrypted blob serialized data map, without writing to the network
-    pub async fn generate_data_map(&self, the_blob: &Blob) -> Result<DataMap, Error> {
-        let blob_storage = BlobStorageDryRun::new(self.clone(), the_blob.is_public());
+    /// Uses self_encryption to generate an encrypted Blob serialized data map,
+    /// without connecting and/or writing to the network.
+    pub async fn blob_data_map(
+        mut data: Vec<u8>,
+        privately_owned: Option<PublicKey>,
+    ) -> Result<(DataMap, BlobAddress), Error> {
+        // We generate a random public key as owner since this is used for dry-run only
+        let mut is_original_data = true;
 
-        let self_encryptor =
-            SelfEncryptor::new(blob_storage, DataMap::None).map_err(Error::SelfEncryption)?;
-        self_encryptor
-            .write(the_blob.value(), 0)
-            .await
-            .map_err(Error::SelfEncryption)?;
-        let (data_map, _) = self_encryptor
-            .close()
-            .await
-            .map_err(Error::SelfEncryption)?;
+        let (data_map, blob) = loop {
+            let blob_storage = BlobStorageDryRun::new(privately_owned);
+            let self_encryptor =
+                SelfEncryptor::new(blob_storage, DataMap::None).map_err(Error::SelfEncryption)?;
+            self_encryptor
+                .write(&data, 0)
+                .await
+                .map_err(Error::SelfEncryption)?;
+            let (data_map, _) = self_encryptor
+                .close()
+                .await
+                .map_err(Error::SelfEncryption)?;
 
-        Ok(data_map)
+            let blob_content = if is_original_data {
+                is_original_data = false;
+                serialize(&DataMapLevel::Root(data_map.clone()))?
+            } else {
+                serialize(&DataMapLevel::Child(data_map.clone()))?
+            };
+
+            let blob: Blob = if let Some(owner) = privately_owned {
+                PrivateBlob::new(blob_content, owner).into()
+            } else {
+                PublicBlob::new(blob_content).into()
+            };
+
+            // If Blob (data map) is bigger than 1MB we need to break it down
+            if blob.validate_size() {
+                break (data_map, blob);
+            } else {
+                data = serialize(&blob)?;
+            }
+        };
+
+        Ok((data_map, *blob.address()))
     }
 
     // --------------------------------------------
@@ -262,8 +289,8 @@ impl Client {
     // --------------------------------------------
 
     // Writes raw data to the network into immutable data chunks
-    async fn write_to_network(&self, data: &[u8], published: bool) -> Result<DataMap, Error> {
-        let blob_storage = BlobStorage::new(self.clone(), published);
+    async fn write_to_network(&self, data: &[u8], public: bool) -> Result<DataMap, Error> {
+        let blob_storage = BlobStorage::new(self.clone(), public);
         let self_encryptor = SelfEncryptor::new(blob_storage.clone(), DataMap::None)
             .map_err(Error::SelfEncryption)?;
 
@@ -278,15 +305,16 @@ impl Client {
             .map_err(Error::SelfEncryption)?;
         Ok(data_map)
     }
+
     // This function reads raw data from the network using the data map
     async fn read_using_data_map(
         &self,
         data_map: DataMap,
-        published: bool,
+        public: bool,
         position: Option<u64>,
         len: Option<u64>,
     ) -> Result<Vec<u8>, Error> {
-        let blob_storage = BlobStorage::new(self.clone(), published);
+        let blob_storage = BlobStorage::new(self.clone(), public);
         let self_encryptor =
             SelfEncryptor::new(blob_storage, data_map).map_err(Error::SelfEncryption)?;
 
@@ -318,21 +346,21 @@ impl Client {
     ///
     /// If the root data map blob is too big, the whole blob is self-encrypted and the child data map is put into a blob.
     /// The above step is repeated as many times as required until the blob size is valid.
-    async fn pack(&self, mut contents: Vec<u8>, published: bool) -> Result<Blob, Error> {
+    async fn pack(&self, mut contents: Vec<u8>, public: bool) -> Result<Blob, Error> {
         loop {
-            let data: Blob = if published {
+            let data: Blob = if public {
                 PublicBlob::new(contents).into()
             } else {
                 PrivateBlob::new(contents, self.public_key().await).into()
             };
 
-            // If data map blob is less thatn 1MB return it so it can be directly sento to the network
+            // If data map blob is less thatn 1MB return it so it can be directly sent to the network
             if data.validate_size() {
                 return Ok(data);
             } else {
                 let serialized_blob = serialize(&data)?;
-                let data_map = self.write_to_network(&serialized_blob, published).await?;
-                contents = serialize(&DataMapLevel::Child(data_map))?
+                let data_map = self.write_to_network(&serialized_blob, public).await?;
+                contents = serialize(&DataMapLevel::Child(data_map))?;
             }
         }
     }
@@ -342,14 +370,14 @@ impl Client {
     /// the process repeats itself until it obtains the root data map.
     async fn unpack(&self, mut data: Blob) -> Result<DataMap, Error> {
         loop {
-            let published = data.is_public();
+            let public = data.is_public();
             match deserialize(data.value())? {
                 DataMapLevel::Root(data_map) => {
                     return Ok(data_map);
                 }
                 DataMapLevel::Child(data_map) => {
                     let serialized_blob = self
-                        .read_using_data_map(data_map, published, None, None)
+                        .read_using_data_map(data_map, public, None, None)
                         .await?;
                     data = deserialize(&serialized_blob)?;
                 }
@@ -357,9 +385,10 @@ impl Client {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
-    use super::{Blob, BlobAddress, DataMap, DataMapLevel, Error};
+    use super::{Blob, BlobAddress, Client, DataMap, DataMapLevel, Error};
     use crate::client::blob_storage::BlobStorage;
     use crate::utils::{
         generate_random_vector, test_utils::create_test_client, test_utils::gen_ed_keypair,
@@ -461,7 +490,7 @@ mod tests {
         // let expected_bal = calculate_new_balance(start_bal, Some(3), None);
         // assert_eq!(balance, expected_bal);
 
-        // Test putting published blob with the same value. Should not conflict.
+        // Test putting public blob with the same value. Should not conflict.
         let pub_address = client.store_public_blob(&value).await?;
 
         // Fetch blob
@@ -661,13 +690,13 @@ mod tests {
     }
 
     #[allow(clippy::match_wild_err_arm)]
-    async fn gen_data_then_create_and_retrieve(size: usize, publish: bool) -> Result<()> {
+    async fn gen_data_then_create_and_retrieve(size: usize, public: bool) -> Result<()> {
         let raw_data = generate_random_vector(size);
 
         let client = create_test_client().await?;
 
-        // gen address without putting to the network (published and unencrypted)
-        let blob = if publish {
+        // gen address without putting to the network (public and unencrypted)
+        let blob = if public {
             Blob::Public(PublicBlob::new(raw_data.clone()))
         } else {
             Blob::Private(PrivateBlob::new(
@@ -688,7 +717,7 @@ mod tests {
             ),
         };
 
-        let address = if publish {
+        let address = if public {
             client.store_public_blob(&raw_data).await?
         } else {
             client.store_private_blob(&raw_data).await?
@@ -706,6 +735,15 @@ mod tests {
 
         // then the content should be what we put
         assert_eq!(fetch_result?, raw_data);
+
+        // now let's test Blob data map generation utility returns the correct Blob address
+        let privately_owned = if public {
+            None
+        } else {
+            Some(client.public_key().await)
+        };
+        let (_, blob_address) = Client::blob_data_map(raw_data, privately_owned).await?;
+        assert_eq!(blob_address, address);
 
         Ok(())
     }

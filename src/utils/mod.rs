@@ -12,8 +12,7 @@ pub mod test_utils;
 
 use crate::errors::Error;
 use bincode::{deserialize, serialize};
-use miscreant::aead::Aead;
-use miscreant::Aes128SivAead;
+use miscreant::{Aead, Aes128SivAead};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::OsRng;
 use rand::{self, Rng};
@@ -96,7 +95,7 @@ pub fn symmetric_encrypt(
     };
 
     let mut cipher = Aes128SivAead::new(secret_key);
-    let cipher_text = cipher.seal(&nonce, &[], plain_text);
+    let cipher_text = cipher.encrypt(&nonce, &[], plain_text);
 
     Ok(serialize(&SymmetricEnc { nonce, cipher_text })?)
 }
@@ -106,7 +105,7 @@ pub fn symmetric_decrypt(cipher_text: &[u8], secret_key: &SymEncKey) -> Result<V
     let SymmetricEnc { nonce, cipher_text } = deserialize::<SymmetricEnc>(cipher_text)?;
     let mut cipher = Aes128SivAead::new(secret_key);
     cipher
-        .open(&nonce, &[], &cipher_text)
+        .decrypt(&nonce, &[], &cipher_text)
         .map_err(|_| Error::SymmetricDecipherFailure)
 }
 
