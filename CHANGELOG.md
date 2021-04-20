@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.52.11](https://github.com/maidsafe/sn_client/compare/v0.52.10...v0.52.11) (2021-04-20)
+
+
+### Features
+
+* **api:** expose Blob utility API to be able to generate a data map without needing to connect to the network ([817efee](https://github.com/maidsafe/sn_client/commit/817efee20a6d4ff3f1170d0c3142f71891389e79))
+
 ### [0.52.10](https://github.com/maidsafe/sn_client/compare/v0.52.9...v0.52.10) (2021-04-12)
 
 ### [0.52.9](https://github.com/maidsafe/sn_client/compare/v0.52.8...v0.52.9) (2021-04-08)
