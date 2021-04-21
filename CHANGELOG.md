@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.52.14](https://github.com/maidsafe/sn_client/compare/v0.52.13...v0.52.14) (2021-04-21)
+
+
+### Features
+
+* **api:** adding new Register data type API ([c567542](https://github.com/maidsafe/sn_client/commit/c567542a49dc728f2e208152093f454dc4907715))
+
 ### [0.52.13](https://github.com/maidsafe/sn_client/compare/v0.52.12...v0.52.13) (2021-04-21)
 
 ### [0.52.12](https://github.com/maidsafe/sn_client/compare/v0.52.11...v0.52.12) (2021-04-21)
