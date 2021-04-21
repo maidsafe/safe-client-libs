@@ -21,6 +21,9 @@ pub mod transfer_actor;
 /// Sequence APIs
 pub mod sequence_apis;
 
+/// Register APIs
+pub mod register_apis;
+
 /// Blob storage for self encryption.
 pub mod blob_storage;
 

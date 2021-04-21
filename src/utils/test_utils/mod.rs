@@ -43,3 +43,32 @@ pub fn read_network_conn_info() -> Result<HashSet<SocketAddr>> {
 
     Ok(contacts)
 }
+
+#[cfg(test)]
+#[macro_export]
+/// Helper for tests to retry an operation awaiting for a successful response result
+macro_rules! retry_loop {
+    ($async_func:expr) => {
+        loop {
+            match $async_func.await {
+                Ok(val) => break val,
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(200)).await,
+            }
+        }
+    };
+}
+
+#[cfg(test)]
+#[macro_export]
+/// Helper for tests to retry an operation awaiting for a specific result
+macro_rules! retry_loop_for_pattern {
+    ($async_func:expr, $pattern:pat $(if $cond:expr)?) => {
+        loop {
+            let result = $async_func.await;
+            match &result {
+                $pattern $(if $cond)? => break result,
+                Ok(_) | Err(_) => tokio::time::sleep(std::time::Duration::from_millis(200)).await,
+            }
+        }
+    };
+}
