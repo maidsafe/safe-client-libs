@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.52.16](https://github.com/maidsafe/sn_client/compare/v0.52.15...v0.52.16) (2021-04-22)
+
+
+### Bug Fixes
+
+* **test:** fix assertion in blob_deletions test ([ad7d2ab](https://github.com/maidsafe/sn_client/commit/ad7d2ab7d46fc114856be799f7914ed4d640ce3c))
+
 ### [0.52.15](https://github.com/maidsafe/sn_client/compare/v0.52.14...v0.52.15) (2021-04-22)
 
 ### [0.52.14](https://github.com/maidsafe/sn_client/compare/v0.52.13...v0.52.14) (2021-04-21)
