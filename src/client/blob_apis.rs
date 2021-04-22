@@ -562,6 +562,13 @@ mod tests {
             .store_private_blob(&generate_random_vector::<u8>(10))
             .await?;
 
+        let mut res = client.fetch_blob_from_network(address).await;
+        while res.is_err() {
+            sleep(Duration::from_millis(200)).await;
+
+            res = client.fetch_blob_from_network(address).await;
+        }
+
         let balance_before_delete = client.get_balance().await?;
         client.delete_blob(address).await?;
         let new_balance = client.get_balance().await?;
