@@ -176,14 +176,6 @@ impl Client {
             }
         }
 
-        match client.get_history().await {
-            Ok(_) => {}
-            Err(error) => {
-                let err = error.to_string();
-                warn!("{:?}", &err);
-            }
-        };
-
         Ok(client)
     }
 
