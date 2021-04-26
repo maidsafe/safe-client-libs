@@ -61,34 +61,51 @@ impl Session {
         let (
             endpoint,
             _incoming_connections,
-            incoming_messages,
+            mut incoming_messages,
             mut disconnections,
-            bootstrapped_peer,
+            mut bootstrapped_peer,
         ) = self.qp2p.bootstrap().await?;
 
         self.endpoint = Some(endpoint.clone());
+        let mut bootstrap_nodes = endpoint
+            .bootstrap_nodes()
+            .to_vec()
+            .into_iter()
+            .collect::<BTreeSet<_>>();
         let connected_elders = self.connected_elders.clone();
         let _ = tokio::spawn(async move {
             if let Some(disconnected_peer) = disconnections.next().await {
                 let _ = connected_elders.lock().await.remove(&disconnected_peer);
             }
         });
+        self.send_get_section_query(&bootstrapped_peer).await?;
 
-        // Bootstrap and send a handshake request to
-        self.send_get_section_query(Some(bootstrapped_peer)).await?;
-        self.listen_to_incoming_messages(incoming_messages).await?;
-
+        // Bootstrap and send a handshake request to the bootstrapped peer
         let mut we_have_keyset = false;
-
-        // bootstrap is not complete until we have pk set...
         while !we_have_keyset {
-            use tokio::time::sleep;
-            sleep(Duration::from_millis(500)).await;
-            we_have_keyset = self.section_key_set.lock().await.is_some();
+            // This means that the peer we bootstrapped to has responded with a SectionInfo Message
+            if let Ok(Ok(true)) = timeout(
+                Duration::from_secs(30),
+                self.process_incoming_message(&mut incoming_messages),
+            )
+            .await
+            {
+                we_have_keyset = self.section_key_set.lock().await.is_some();
+            } else {
+                // Remove the unresponsive peer we boostrapped to and bootstrap again
+                let _ = bootstrap_nodes.remove(&bootstrapped_peer);
+                bootstrapped_peer = self
+                    .qp2p
+                    .rebootstrap(
+                        &endpoint,
+                        &bootstrap_nodes.iter().cloned().collect::<Vec<_>>(),
+                    )
+                    .await?;
+            }
         }
 
-        // Let's now connect to all Elders
-        self.connect_to_elders().await?;
+        self.spawn_message_listener_thread(incoming_messages)
+            .await?;
 
         Ok(())
     }
@@ -394,9 +411,8 @@ impl Session {
 
     // Private helpers
 
-    // Get section info. Optionally from one node (if we've just bootstrapped qp2p eg)
-    // Otherwise we use all session nodes
-    async fn send_get_section_query(&self, initial_peer: Option<SocketAddr>) -> Result<(), Error> {
+    // Get section info from the peer we have bootstrapped with.
+    async fn send_get_section_query(&self, bootstrapped_peer: &SocketAddr) -> Result<(), Error> {
         if self.is_connecting_to_new_elders {
             // This should ideally be unreachable code. Leaving it while this is a WIP
             error!("Already attempting elder connections, not sending section query until that is complete.");
@@ -404,28 +420,16 @@ impl Session {
         }
 
         // 1. We query the network for section info.
-        trace!("Querying for section info from bootstrapped node...");
+        trace!(
+            "Querying for section info from bootstrapped node: {:?}",
+            bootstrapped_peer
+        );
         let msg =
             SectionInfoMsg::GetSectionQuery(XorName::from(self.client_public_key())).serialize()?;
 
-        if let Some(bootstrapped_peer) = initial_peer {
-            trace!("Bootstrapping with contact... {:?}", bootstrapped_peer);
-
-            self.endpoint()?
-                .send_message(msg, &bootstrapped_peer)
-                .await?;
-        } else {
-            let elders: Vec<SocketAddr> =
-                self.all_known_elders.lock().await.keys().cloned().collect();
-            trace!("Bootstrapping with contacts... {:?}", elders);
-            debug!(">>>>> connecting to session's elders");
-            for socket in elders {
-                let msg = msg.clone();
-                let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
-                endpoint.connect_to(&socket).await?;
-                endpoint.send_message(msg, &socket).await?
-            }
-        }
+        self.endpoint()?
+            .send_message(msg, bootstrapped_peer)
+            .await?;
 
         Ok(())
     }
@@ -590,8 +594,9 @@ impl Session {
                 // request the section info again.
                 self.disconnect_from_peers(vec![src])?;
                 let endpoint = self.endpoint()?.clone();
+                self.qp2p.update_bootstrap_contacts(elders);
                 let boostrapped_peer = self.qp2p.rebootstrap(&endpoint, elders).await?;
-                self.send_get_section_query(Some(boostrapped_peer)).await?;
+                self.send_get_section_query(&boostrapped_peer).await?;
 
                 Ok(())
             }
@@ -671,7 +676,7 @@ impl Session {
                 })
                 .collect::<Vec<_>>();
             self.disconnect_from_peers(old_elders)?;
-            self.qp2p.update_bootstrap_cache(&updated_contacts)?;
+            self.qp2p.update_bootstrap_contacts(&updated_contacts);
             self.connect_to_elders().await
         } else {
             Ok(())
@@ -900,41 +905,64 @@ impl Session {
     }
 
     /// Listen for incoming messages on a connection
-    pub async fn listen_to_incoming_messages(
+    pub async fn spawn_message_listener_thread(
         &self,
         mut incoming_messages: IncomingMessages,
     ) -> Result<(), Error> {
-        debug!("Adding IncomingMessages listener");
+        debug!("Listening for incoming messages");
 
         let mut session = self.clone();
-        // Spawn a thread
+        // Spawn a thread if we have finished bootstrapping
         let _ = tokio::spawn(async move {
-            while let Some((src, message)) = incoming_messages.next().await {
-                let message_type = WireMsg::deserialize(message)?;
-                warn!("Message received at listener from {:?}", &src);
-                match message_type {
-                    MessageType::SectionInfo(msg) => {
-                        match session.handle_sectioninfo_msg(msg, src).await {
-                            Ok(()) => (),
-                            Err(error) => {
-                                error!("Error handling network info message: {:?}", error);
-                                // that's enough
-                                // go back to using a clone of session before the error
-                            }
-                        }
+            loop {
+                match session
+                    .process_incoming_message(&mut incoming_messages)
+                    .await
+                {
+                    Ok(true) => (),
+                    Err(err) => {
+                        error!("Error while processing incoming message: {:?}. Listening for next message...", err);
                     }
-                    MessageType::ClientMessage(msg) => session.handle_client_msg(msg, src).await,
-                    msg_type => {
-                        warn!("Unexpected message type received: {:?}", msg_type);
+                    Ok(false) => {
+                        info!("IncomingMessages listener has closed.");
+                        break;
                     }
                 }
             }
-            info!("IncomingMessages listener is closing now");
             Ok::<(), Error>(())
         });
 
         // Some or None, not super important if this existed before...
         Ok(())
+    }
+
+    async fn process_incoming_message(
+        &mut self,
+        incoming_messages: &mut IncomingMessages,
+    ) -> Result<bool, Error> {
+        if let Some((src, message)) = incoming_messages.next().await {
+            let message_type = WireMsg::deserialize(message)?;
+            warn!("Message received at listener from {:?}", &src);
+            match message_type {
+                MessageType::SectionInfo(msg) => {
+                    match self.handle_sectioninfo_msg(msg, src).await {
+                        Ok(()) => (),
+                        Err(error) => {
+                            error!("Error handling network info message: {:?}", error);
+                            // that's enough
+                            // go back to using a clone of session before the error
+                        }
+                    }
+                }
+                MessageType::ClientMessage(msg) => self.handle_client_msg(msg, src).await,
+                msg_type => {
+                    warn!("Unexpected message type received: {:?}", msg_type);
+                }
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

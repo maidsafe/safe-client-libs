@@ -505,7 +505,7 @@ mod tests {
         assert!(register.is_public());
 
         match client.delete_register(address).await {
-            Err(Error::ErrorMessage(ErrorMessage::InvalidOperation)) => {}
+            Err(Error::ErrorMessage(ErrorMessage::InvalidOperation(_))) => {}
             Err(err) => bail!(
                 "Unexpected error returned when attempting to delete a Public Register: {}",
                 err

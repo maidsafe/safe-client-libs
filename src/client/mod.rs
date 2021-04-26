@@ -297,7 +297,11 @@ pub async fn attempt_bootstrap(
             Err(err) => {
                 attempts += 1;
                 if attempts < 3 {
-                    trace!("Error connecting to network! Retrying... ({})", attempts);
+                    trace!(
+                        "Error connecting to network! {:?}\nRetrying... ({})",
+                        err,
+                        attempts
+                    );
                 } else {
                     return Err(err);
                 }

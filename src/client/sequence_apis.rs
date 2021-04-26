@@ -1228,7 +1228,7 @@ mod tests {
 
         // Check that our data still exists.
         match client.get_sequence(address).await {
-            Err(Error::ErrorMessage(ErrorMessage::InvalidOperation)) => Ok(()),
+            Err(Error::ErrorMessage(ErrorMessage::InvalidOperation(_))) => Ok(()),
             Err(err) => Err(anyhow!(
                 "Unexpected error returned when attempting to get a Public Sequence: {}",
                 err
