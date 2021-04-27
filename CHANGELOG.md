@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.52.18](https://github.com/maidsafe/sn_client/compare/v0.52.17...v0.52.18) (2021-04-27)
+
+
+### Bug Fixes
+
+* **deps:** use released version of qp2p instead of git branch ([c9b2392](https://github.com/maidsafe/sn_client/commit/c9b23920aa1acb13fc62c488f5d4c1b1fb82bf53))
+
 ### [0.52.17](https://github.com/maidsafe/sn_client/compare/v0.52.16...v0.52.17) (2021-04-26)
 
 ### [0.52.16](https://github.com/maidsafe/sn_client/compare/v0.52.15...v0.52.16) (2021-04-22)
