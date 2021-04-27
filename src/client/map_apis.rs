@@ -808,7 +808,7 @@ mod tests {
 
         match res {
             Err(Error::ErrorMessage {
-                source: ErrorMessage::NoSuchData,
+                source: ErrorMessage::DataNotFound(_),
                 ..
             }) => (),
             _ => bail!("Unexpected success"),
@@ -838,7 +838,7 @@ mod tests {
 
         match res {
             Err(Error::ErrorMessage {
-                source: ErrorMessage::NoSuchData,
+                source: ErrorMessage::DataNotFound(_),
                 ..
             }) => (),
             _ => bail!("Unexpected success"),
@@ -903,7 +903,7 @@ mod tests {
         let res = client.get_map_shell(address).await;
         match res {
             Err(Error::ErrorMessage {
-                source: ErrorMessage::NoSuchData,
+                source: ErrorMessage::DataNotFound(_),
                 ..
             }) => (),
             Ok(_) => bail!("Unexpected Success: Validating owners should fail"),

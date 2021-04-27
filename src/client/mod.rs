@@ -236,12 +236,9 @@ impl Client {
         let id = MessageId::new();
         trace!("Creating cmd message with id: {:?}", id);
 
-        let target_section_pk = Some(self.session.section_key().await?);
-
         Ok(Message::Cmd {
             cmd: msg_contents,
             id,
-            target_section_pk,
         })
     }
 
@@ -250,12 +247,9 @@ impl Client {
         let id = MessageId::new();
         trace!("Creating query message with id : {:?}", id);
 
-        let target_section_pk = Some(self.session.section_key().await?);
-
         Ok(Message::Query {
             query: msg_contents,
             id,
-            target_section_pk,
         })
     }
 

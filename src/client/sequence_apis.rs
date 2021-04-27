@@ -1190,7 +1190,7 @@ mod tests {
 
         match res {
             Err(Error::ErrorMessage {
-                source: ErrorMessage::NoSuchData,
+                source: ErrorMessage::DataNotFound(_),
                 ..
             }) => Ok(()),
             Err(err) => Err(anyhow!(

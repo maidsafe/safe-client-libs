@@ -156,7 +156,6 @@ impl From<(CmdError, MessageId)> for Error {
                 TransferError::TransferValidation(err) => err,
                 TransferError::TransferRegistration(err) => err,
             },
-            CmdError::Auth(auth_error) => auth_error,
         };
         Error::ErrorMessage { source, msg_id }
     }
