@@ -146,12 +146,12 @@ impl Client {
         trace!("Get Register data at {:?}", address.name());
         // Let's fetch the Register from the network
         let query = Query::Data(DataQuery::Register(RegisterRead::Get(address)));
-        let register = match self.send_query(query).await? {
-            QueryResponse::GetRegister(res) => res.map_err(Error::from),
+        let query_result = self.send_query(query).await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::GetRegister(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
-        }?;
-
-        Ok(register)
+        }
     }
 
     /// Get the last data entry from a Register data.
@@ -475,7 +475,10 @@ mod tests {
         }
 
         match res {
-            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => Ok(()),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::NoSuchData,
+                ..
+            }) => Ok(()),
             Err(err) => Err(anyhow!(
                 "Unexpected error returned when deleting a nonexisting Private Register: {}",
                 err
@@ -505,7 +508,10 @@ mod tests {
         assert!(register.is_public());
 
         match client.delete_register(address).await {
-            Err(Error::ErrorMessage(ErrorMessage::InvalidOperation(_))) => {}
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::InvalidOperation(_),
+                ..
+            }) => {}
             Err(err) => bail!(
                 "Unexpected error returned when attempting to delete a Public Register: {}",
                 err

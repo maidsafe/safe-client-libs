@@ -82,10 +82,11 @@ impl Client {
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
 
         let message = self.create_query_message(msg_contents).await?;
-        let res = self.session.send_query(&message).await?;
+        let query_result = self.session.send_query(&message).await?;
+        let msg_id = query_result.msg_id;
 
-        match res {
-            QueryResponse::GetBalance(balance) => balance.map_err(Error::from),
+        match query_result.response {
+            QueryResponse::GetBalance(balance) => balance.map_err(|err| Error::from((err, msg_id))),
             another_response => Err(Error::UnexpectedQueryResponse(another_response)),
         }
     }

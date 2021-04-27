@@ -9,8 +9,11 @@
 use qp2p::Error as QuicP2pError;
 use sn_data_types::{Error as DtError, PublicKey};
 pub use sn_messaging::client::Error as ErrorMessage;
-use sn_messaging::client::{CmdError, Event, QueryResponse, TransferError};
 pub use sn_messaging::Error as MessagingError;
+use sn_messaging::{
+    client::{CmdError, Event, QueryResponse, TransferError},
+    MessageId,
+};
 pub use sn_transfers::Error as TransfersError;
 use std::io;
 
@@ -114,8 +117,17 @@ pub enum Error {
     #[error(transparent)]
     Transfer(#[from] TransfersError),
     /// Errors received from the network via sn_messaging
-    #[error(transparent)]
-    ErrorMessage(#[from] ErrorMessage),
+    #[error(
+        "Error received from the network: {:?} MessageId: {:?}",
+        source,
+        msg_id
+    )]
+    ErrorMessage {
+        /// The source of an error message
+        source: ErrorMessage,
+        /// Message ID that was used to send the query
+        msg_id: MessageId,
+    },
     /// Errors occurred when serialising or deserialising messages
     #[error(transparent)]
     MessagingProtocol(#[from] MessagingError),
@@ -136,9 +148,9 @@ pub enum Error {
     Serialisation(#[from] Box<bincode::ErrorKind>),
 }
 
-impl From<CmdError> for Error {
-    fn from(error: CmdError) -> Self {
-        let err = match error {
+impl From<(CmdError, MessageId)> for Error {
+    fn from((error, msg_id): (CmdError, MessageId)) -> Self {
+        let source = match error {
             CmdError::Data(data_err) => data_err,
             CmdError::Transfer(err) => match err {
                 TransferError::TransferValidation(err) => err,
@@ -146,6 +158,12 @@ impl From<CmdError> for Error {
             },
             CmdError::Auth(auth_error) => auth_error,
         };
-        Error::ErrorMessage(err)
+        Error::ErrorMessage { source, msg_id }
+    }
+}
+
+impl From<(ErrorMessage, MessageId)> for Error {
+    fn from((source, msg_id): (ErrorMessage, MessageId)) -> Self {
+        Self::ErrorMessage { source, msg_id }
     }
 }
