@@ -341,15 +341,14 @@ impl Client {
     pub async fn get_sequence(&self, address: SequenceAddress) -> Result<Sequence, Error> {
         trace!("Get Sequence Data at {:?}", address.name());
         // Let's fetch the Sequence from the network
-        let sequence = match self
+        let query_result = self
             .send_query(wrap_seq_read(SequenceRead::Get(address)))
-            .await?
-        {
-            QueryResponse::GetSequence(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::GetSequence(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
-        }?;
-
-        Ok(sequence)
+        }
     }
 
     /// Get the last data entry from a Sequence Data.
@@ -1190,7 +1189,10 @@ mod tests {
         }
 
         match res {
-            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => Ok(()),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::NoSuchData,
+                ..
+            }) => Ok(()),
             Err(err) => Err(anyhow!(
                 "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
                 err
@@ -1228,7 +1230,10 @@ mod tests {
 
         // Check that our data still exists.
         match client.get_sequence(address).await {
-            Err(Error::ErrorMessage(ErrorMessage::InvalidOperation(_))) => Ok(()),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::InvalidOperation(_),
+                ..
+            }) => Ok(()),
             Err(err) => Err(anyhow!(
                 "Unexpected error returned when attempting to get a Public Sequence: {}",
                 err

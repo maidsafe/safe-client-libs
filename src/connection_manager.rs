@@ -224,12 +224,14 @@ impl Session {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
+    pub(crate) async fn send_query(&self, msg: &Message) -> Result<QueryResult, Error> {
         let endpoint = self.endpoint()?.clone();
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
         let pending_queries = self.pending_queries.clone();
 
-        info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
+        let msg_id = msg.id();
+
+        info!("sending query message {:?} w/ id: {:?}", msg, msg_id);
         let msg_bytes = msg.serialize()?;
 
         // We send the same message to all Elders concurrently,
@@ -241,7 +243,6 @@ impl Session {
         // set up listeners
         for socket in elders.clone() {
             // Create a new stream here to not have to worry about filtering replies
-            let msg_id = msg.id();
             let msg = msg.clone();
             let pending_queries = pending_queries.clone();
 
@@ -406,7 +407,10 @@ impl Session {
             winner.1, winner.0
         );
 
-        winner.0.ok_or(Error::NoResponse)
+        winner
+            .0
+            .map(|response| QueryResult { response, msg_id })
+            .ok_or(Error::NoResponse)
     }
 
     // Private helpers
@@ -734,18 +738,25 @@ impl Session {
             } => {
                 if let Some(sender) = self.pending_transfers.lock().await.get_mut(&correlation_id) {
                     debug!("Cmd Error was received, sending on channel to caller");
-                    let _ = sender.send(Err(Error::from(error.clone()))).await;
+                    let _ = sender
+                        .send(Err(Error::from((error.clone(), correlation_id))))
+                        .await;
                 } else {
                     warn!("No sender subscribing and listening for errors relating to message {:?}. Error returned is: {:?}", correlation_id, error)
                 }
 
-                let _ = notifier.send(Error::from(error));
+                let _ = notifier.send(Error::from((error, correlation_id)));
             }
             msg => {
                 warn!("another message type received {:?}", msg);
             }
         };
     }
+}
+
+pub(crate) struct QueryResult {
+    pub response: QueryResponse,
+    pub msg_id: MessageId,
 }
 
 /// Choose the best response when no single responses passes the threshold

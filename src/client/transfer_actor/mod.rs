@@ -131,11 +131,12 @@ impl Client {
         let message = self.create_query_message(msg_contents).await?;
 
         // This is a normal response manager request. We want quorum on this for now...
-        let res = self.session.send_query(&message).await?;
+        let query_result = self.session.send_query(&message).await?;
+        let msg_id = query_result.msg_id;
 
-        let history = match res {
-            QueryResponse::GetHistory(history) => history.map_err(Error::from),
-            _ => Err(Error::UnexpectedHistoryResponse(res)),
+        let history = match query_result.response {
+            QueryResponse::GetHistory(history) => history.map_err(|err| Error::from((err, msg_id))),
+            _ => Err(Error::UnexpectedHistoryResponse(query_result.response)),
         }?;
 
         let mut actor = self.transfer_actor.lock().await;
@@ -175,11 +176,12 @@ impl Client {
 
         // This is a normal response manager request. We want quorum on this for now...
 
-        let res = self.session.send_query(&message).await?;
+        let query_result = self.session.send_query(&message).await?;
+        let msg_id = query_result.msg_id;
 
-        match res {
-            QueryResponse::GetStoreCost(cost) => cost.map_err(Error::ErrorMessage),
-            _ => Err(Error::UnexpectedStoreCostResponse(res)),
+        match query_result.response {
+            QueryResponse::GetStoreCost(cost) => cost.map_err(|err| Error::from((err, msg_id))),
+            _ => Err(Error::UnexpectedStoreCostResponse(query_result.response)),
         }
     }
 

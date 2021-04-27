@@ -35,7 +35,7 @@ pub use blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use crate::{
     config_handler::Config,
-    connection_manager::{Session, Signer},
+    connection_manager::{QueryResult, Session, Signer},
     errors::Error,
 };
 use crdts::Dot;
@@ -45,7 +45,7 @@ use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
 use sn_messaging::{
-    client::{Cmd, DataCmd, Message, Query, QueryResponse},
+    client::{Cmd, DataCmd, Message, Query},
     MessageId,
 };
 use std::{
@@ -221,7 +221,7 @@ impl Client {
     }
 
     /// Send a Query to the network and await a response
-    async fn send_query(&self, query: Query) -> Result<QueryResponse, Error> {
+    async fn send_query(&self, query: Query) -> Result<QueryResult, Error> {
         // `sign` should be false for GETs on published data, true otherwise.
 
         debug!("Sending QueryRequest: {:?}", query);

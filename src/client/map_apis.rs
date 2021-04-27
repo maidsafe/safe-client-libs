@@ -266,11 +266,12 @@ impl Client {
     {
         trace!("Fetch Sequenced Mutable Data");
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::Get(address)))
-            .await?
-        {
-            QueryResponse::GetMap(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::GetMap(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -318,11 +319,12 @@ impl Client {
     {
         trace!("Fetch MapValue for {:?}", address);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::GetValue { address, key }))
-            .await?
-        {
-            QueryResponse::GetMapValue(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::GetMapValue(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -334,11 +336,12 @@ impl Client {
     {
         trace!("GetMapShell for {:?}", address);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::GetShell(address)))
-            .await?
-        {
-            QueryResponse::GetMapShell(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::GetMapShell(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -383,11 +386,12 @@ impl Client {
     {
         trace!("GetMapVersion for {:?}", address);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::GetVersion(address)))
-            .await?
-        {
-            QueryResponse::GetMapVersion(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::GetMapVersion(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -443,19 +447,20 @@ impl Client {
     {
         trace!("ListMapEntries for {:?}", name);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::ListEntries(MapAddress::Unseq {
                 name,
                 tag,
             })))
-            .await?
-        {
-            QueryResponse::ListMapEntries(res) => {
-                res.map_err(Error::from).and_then(|entries| match entries {
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::ListMapEntries(res) => res
+                .map_err(|err| Error::from((err, msg_id)))
+                .and_then(|entries| match entries {
                     MapEntries::Unseq(data) => Ok(data),
                     MapEntries::Seq(_) => Err(Error::ReceivedUnexpectedData),
-                })
-            }
+                }),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -471,19 +476,20 @@ impl Client {
     {
         trace!("ListSeqMapEntries for {:?}", name);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::ListEntries(MapAddress::Seq {
                 name,
                 tag,
             })))
-            .await?
-        {
-            QueryResponse::ListMapEntries(res) => {
-                res.map_err(Error::from).and_then(|entries| match entries {
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::ListMapEntries(res) => res
+                .map_err(|err| Error::from((err, msg_id)))
+                .and_then(|entries| match entries {
                     MapEntries::Seq(data) => Ok(data),
                     MapEntries::Unseq(_) => Err(Error::ReceivedUnexpectedData),
-                })
-            }
+                }),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -495,15 +501,14 @@ impl Client {
     {
         trace!("ListMapKeys for {:?}", address);
 
-        let res = match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::ListKeys(address)))
-            .await?
-        {
-            QueryResponse::ListMapKeys(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::ListMapKeys(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
-        }?;
-
-        Ok(res)
+        }
     }
 
     /// Return a list of values in a Sequenced Mutable Data
@@ -517,19 +522,20 @@ impl Client {
     {
         trace!("List MapValues for {:?}", name);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::ListValues(MapAddress::Seq {
                 name,
                 tag,
             })))
-            .await?
-        {
-            QueryResponse::ListMapValues(res) => {
-                res.map_err(Error::from).and_then(|values| match values {
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::ListMapValues(res) => res
+                .map_err(|err| Error::from((err, msg_id)))
+                .and_then(|values| match values {
                     MapValues::Seq(data) => Ok(data),
                     MapValues::Unseq(_) => Err(Error::ReceivedUnexpectedData),
-                })
-            }
+                }),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -545,19 +551,20 @@ impl Client {
     {
         trace!("List MapValues for {:?}", name);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::ListValues(MapAddress::Unseq {
                 name,
                 tag,
             })))
-            .await?
-        {
-            QueryResponse::ListMapValues(res) => {
-                res.map_err(Error::from).and_then(|values| match values {
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::ListMapValues(res) => res
+                .map_err(|err| Error::from((err, msg_id)))
+                .and_then(|values| match values {
                     MapValues::Unseq(data) => Ok(data),
                     MapValues::Seq(_) => Err(Error::ReceivedUnexpectedData),
-                })
-            }
+                }),
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -577,14 +584,17 @@ impl Client {
     {
         trace!("GetMapUserPermissions for {:?}", address);
 
-        match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::ListUserPermissions {
                 address,
                 user,
             }))
-            .await?
-        {
-            QueryResponse::ListMapUserPermissions(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::ListMapUserPermissions(res) => {
+                res.map_err(|err| Error::from((err, msg_id)))
+            }
             _ => Err(Error::ReceivedUnexpectedEvent),
         }
     }
@@ -599,15 +609,14 @@ impl Client {
     {
         trace!("List MapPermissions for {:?}", address);
 
-        let res = match self
+        let query_result = self
             .send_query(wrap_map_read(MapRead::ListPermissions(address)))
-            .await?
-        {
-            QueryResponse::ListMapPermissions(res) => res.map_err(Error::from),
+            .await?;
+        let msg_id = query_result.msg_id;
+        match query_result.response {
+            QueryResponse::ListMapPermissions(res) => res.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::ReceivedUnexpectedEvent),
-        }?;
-
-        Ok(res)
+        }
     }
 
     /// Updates or inserts a permissions set for a user
@@ -798,7 +807,10 @@ mod tests {
         }
 
         match res {
-            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::NoSuchData,
+                ..
+            }) => (),
             _ => bail!("Unexpected success"),
         }
         Ok(())
@@ -825,7 +837,10 @@ mod tests {
         }
 
         match res {
-            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::NoSuchData,
+                ..
+            }) => (),
             _ => bail!("Unexpected success"),
         }
 
@@ -855,7 +870,10 @@ mod tests {
         )
         .await
         {
-            Ok(Some(Error::ErrorMessage(ErrorMessage::AccessDenied(_)))) => Ok(()),
+            Ok(Some(Error::ErrorMessage {
+                source: ErrorMessage::AccessDenied(_),
+                ..
+            })) => Ok(()),
             Ok(Some(error)) => bail!("Expecting AccessDenied error got: {:?}", error),
             Ok(None) => bail!("Expecting AccessDenited Error, got None"),
             Err(_) => bail!("Timeout when expecting AcccessDenied error"),
@@ -884,7 +902,10 @@ mod tests {
             .await?;
         let res = client.get_map_shell(address).await;
         match res {
-            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::NoSuchData,
+                ..
+            }) => (),
             Ok(_) => bail!("Unexpected Success: Validating owners should fail"),
             Err(e) => bail!("Unexpected: {:?}", e),
         };
@@ -1071,7 +1092,10 @@ mod tests {
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => bail!("Unexpected: Entry should not exist"),
-            Err(Error::ErrorMessage(ErrorMessage::NoSuchEntry)) => (),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::NoSuchEntry,
+                ..
+            }) => (),
             Err(err) => bail!("Unexpected error: {:?}", err),
         };
 
@@ -1131,7 +1155,10 @@ mod tests {
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => bail!("Unexpected: Entry should not exist"),
-            Err(Error::ErrorMessage(ErrorMessage::NoSuchEntry)) => Ok(()),
+            Err(Error::ErrorMessage {
+                source: ErrorMessage::NoSuchEntry,
+                ..
+            }) => Ok(()),
             Err(err) => bail!("Unexpected error: {:?}", err),
         }
     }
