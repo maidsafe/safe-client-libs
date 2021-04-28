@@ -14,9 +14,11 @@ use futures::{
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Endpoint, IncomingMessages, QuicP2p};
-use sn_data_types::{Keypair, PublicKey, Signature, TransferValidated};
+use sn_data_types::{
+    Blob, Keypair, PrivateBlob, PublicBlob, PublicKey, Signature, TransferValidated,
+};
 use sn_messaging::{
-    client::{Event, Message, QueryResponse},
+    client::{BlobRead, DataQuery, Event, Message, Query, QueryResponse},
     section_info::{
         Error as SectionInfoError, GetSectionResponse, Message as SectionInfoMsg, SectionInfo,
     },
@@ -231,7 +233,11 @@ impl Session {
 
         let msg_id = msg.id();
 
-        info!("sending query message {:?} w/ id: {:?}", msg, msg_id);
+        info!(
+            "Sending query message {:?} w/ id: {:?}, to Elders: {:?}",
+            msg, msg_id, elders
+        );
+
         let msg_bytes = msg.serialize()?;
 
         // We send the same message to all Elders concurrently,
@@ -248,9 +254,10 @@ impl Session {
 
             let (sender, receiver) = channel::<Result<QueryResponse, Error>>(7);
 
-            debug!(
+            trace!(
                 "Inserting query listener for socket {:?}, and msg_id {:?}",
-                socket, msg_id
+                socket,
+                msg_id
             );
 
             let _ = pending_queries
@@ -261,67 +268,56 @@ impl Session {
             pending_sending.push((socket, msg_id, msg, receiver));
         }
 
-        debug!("All listeners set up for the query");
+        debug!("All listeners set up for the query w/ id: {:?}", msg_id);
 
-        // two loops so we have all listeners set up first
+        // Now that we have all listeners set up, we send out the queries
         for (socket, msg_id, message, mut receiver) in pending_sending {
             let msg_bytes_clone = msg_bytes.clone();
             let pending_queries = pending_queries.clone();
-            let msg = message;
 
             let endpoint = endpoint.clone();
-            endpoint.connect_to(&socket).await?;
 
             let task_handle = tokio::spawn(async move {
-                // Retry queries that failed for connection issues
-                let mut done_trying = false;
+                endpoint.connect_to(&socket).await?;
+
+                // Retry queries that failed due to connection issues
                 let mut result = Err(Error::ElderQuery);
                 let mut attempts: usize = 1;
 
-                while !done_trying {
+                while attempts <= NUMBER_OF_RETRIES {
                     let msg_bytes_clone = msg_bytes_clone.clone();
 
-                    match endpoint.send_message(msg_bytes_clone, &socket).await {
-                        Ok(()) => {
-                            trace!(
-                                "Message {:?} sent to {}. Waiting for response...",
-                                msg.clone(),
-                                &socket
-                            );
+                    if let Err(err) = endpoint.send_message(msg_bytes_clone, &socket).await {
+                        error!(
+                            "Try #{:?} @ {:?}, failed sending query message: {}",
+                            attempts, socket, err
+                        );
+                        result = Err(Error::SendingQuery);
+                        attempts += 1;
+                    } else {
+                        trace!(
+                            "Message {:?} sent to {}. Waiting for response...",
+                            message,
+                            &socket
+                        );
 
-                            return if let Some(res) = receiver.recv().await {
-                                res
-                            } else {
-                                error!("Error from query response, non received");
-                                Err(Error::QueryReceiverError)
-                            };
-                        }
-                        Err(_error) => {
-                            let _ = pending_queries
-                                .clone()
-                                .lock()
-                                .await
-                                .remove(&(socket, msg_id));
-                            result = {
-                                error!("Error sending query message");
-                                Err(Error::SendingQuery)
-                            }
-                        }
-                    };
+                        result = if let Some(res) = receiver.recv().await {
+                            res
+                        } else {
+                            error!("Error from query response, non received");
+                            Err(Error::QueryReceiverError)
+                        };
 
-                    debug!(
-                        "Try #{:?} @ {:?}. Got back response: {:?}",
-                        attempts,
-                        socket,
-                        &result.is_ok()
-                    );
-
-                    if result.is_ok() || attempts > NUMBER_OF_RETRIES {
-                        done_trying = true;
+                        // we don't retry here even if it failed to obtain a response
+                        break;
                     }
-
-                    attempts += 1;
                 }
+
+                let _ = pending_queries
+                    .clone()
+                    .lock()
+                    .await
+                    .remove(&(socket, msg_id));
 
                 result
             });
@@ -333,12 +329,28 @@ impl Session {
         let mut vote_map = VoteMap::default();
         let mut received_errors = 0;
 
-        let threshold: usize = self.supermajority().await;
+        let (threshold, chunk_addr) = match msg {
+            Message::Query {
+                query: Query::Data(DataQuery::Blob(BlobRead::Get(address))),
+                ..
+            } => {
+                trace!("Only one valid Chunk response is needed");
+                (1, Some(address))
+            }
+            _other => {
+                // We assume there can be at most two bysantine Elders in a section
+                let threshold = 3;
+                trace!("Vote threshold is: {:?}", threshold);
+                (threshold, None)
+            }
+        };
 
-        trace!("Vote threshold is: {:?}", threshold);
         let connected_elders_count = self.connected_elders_count().await;
-        if self.connected_elders_count().await < threshold {
-            error!("Not enough elder conns");
+        if connected_elders_count < threshold {
+            error!(
+                "Not enough Elder connections: {}, minimum required: {}",
+                connected_elders_count, threshold
+            );
             return Err(Error::InsufficientElderConnections(connected_elders_count));
         }
 
@@ -349,45 +361,77 @@ impl Session {
         let mut todo = tasks;
 
         while !has_elected_a_response {
-            debug!("Still not chosen a response....");
+            debug!(
+                "Still not chosen a response ({} reponses out of expected {})....",
+                winner.1,
+                threshold + 1
+            );
             if todo.is_empty() {
-                warn!("No more connections to try");
+                warn!("No more responses to consider");
                 break;
             }
 
-            let (res, _idx, remaining_futures) = select_all(todo.into_iter()).await;
+            let (task_result, _, remaining_futures) = select_all(todo.into_iter()).await;
             todo = remaining_futures;
-            if let Ok(res) = res {
-                match res {
-                    Ok(response) => {
-                        debug!("QueryResponse received is: {:#?}", response);
+            match (task_result, chunk_addr) {
+                (Ok(Ok(QueryResponse::GetBlob(Ok(blob)))), Some(chunk_address)) => {
+                    // We are dealing with Chunk query responses, thus we validate its hash
+                    // matches its xorname, if so, we don't need to await for more responses
+                    debug!("Chunk QueryResponse received is: {:#?}", blob);
 
-                        // bincode here as we're using the internal qr, without serialisation
-                        // this is only used internally to sn_client
-                        let mut key = [0; 32];
-                        let mut hasher = Sha3::v256();
-                        hasher.update(&serialize(&response)?);
-                        hasher.finalize(&mut key);
-
-                        let (_, counter) = vote_map.entry(key).or_insert((response.clone(), 0));
-                        *counter += 1;
-
-                        // First, see if this latest response brings us above the threshold for any response
-                        if *counter > threshold {
-                            trace!("Enough votes to be above response threshold");
-
-                            winner = (Some(response.clone()), *counter);
-                            has_elected_a_response = true;
+                    let xorname = match &blob {
+                        Blob::Private(priv_chunk) => {
+                            *PrivateBlob::new(priv_chunk.value().clone(), *priv_chunk.owner())
+                                .name()
                         }
-                    }
-                    _ => {
-                        warn!("Unexpected message in reply to query (retrying): {:?}", res);
+                        Blob::Public(pub_chunk) => {
+                            *PublicBlob::new(pub_chunk.value().clone()).name()
+                        }
+                    };
+
+                    if *chunk_address.name() == xorname {
+                        trace!("We received a valid Chunk so no more responses needed for query w/ id: {}", msg_id);
+                        winner = (Some(QueryResponse::GetBlob(Ok(blob))), 1);
+                        has_elected_a_response = true;
+                    } else {
+                        // the Chunk content doesn't match its Xorname,
+                        // this is suspicious and it could be a byzantine node
+                        warn!("We received an invalid Chunk response from one of the nodes");
                         received_errors += 1;
                     }
                 }
-            } else if let Err(error) = res {
-                error!("Error spawning query task: {:?} ", error);
-                received_errors += 1;
+                (Ok(Ok(response)), _) => {
+                    debug!("QueryResponse received is: {:#?}", response);
+
+                    // bincode here as we're using the internal qr, without serialisation
+                    // this is only used internally to sn_client
+                    let mut key = [0; 32];
+                    let mut hasher = Sha3::v256();
+                    hasher.update(&serialize(&response)?);
+                    hasher.finalize(&mut key);
+
+                    let (_, counter) = vote_map.entry(key).or_insert((response.clone(), 0));
+                    *counter += 1;
+
+                    // First, see if this latest response brings us above the threshold for any response
+                    if *counter > threshold {
+                        trace!("Enough votes to be above response threshold");
+
+                        winner = (Some(response.clone()), *counter);
+                        has_elected_a_response = true;
+                    }
+                }
+                (Ok(other), _) => {
+                    warn!(
+                        "Unexpected message in reply to query (retrying): {:?}",
+                        other
+                    );
+                    received_errors += 1;
+                }
+                (Err(error), _) => {
+                    error!("Error spawning query task: {:?} ", error);
+                    received_errors += 1;
+                }
             }
 
             // Second, let's handle no winner if we have > threshold responses.
@@ -564,7 +608,7 @@ impl Session {
         Ok(())
     }
 
-    /// Handle received network info messages
+    // Handle received network info messages
     async fn handle_sectioninfo_msg(
         &mut self,
         msg: SectionInfoMsg,
@@ -622,13 +666,9 @@ impl Session {
         }
     }
 
-    /// Apply updated info to a network session, and trigger connections
+    // Apply updated info to a network session, and trigger connections
     async fn update_session_info(&mut self, info: &SectionInfo) -> Result<(), Error> {
-        let original_known_elders;
-
-        {
-            original_known_elders = self.all_known_elders.lock().await.clone();
-        }
+        let original_known_elders = self.all_known_elders.lock().await.clone();
 
         // Change this once sn_messaging is updated
         let received_elders = info
@@ -647,7 +687,7 @@ impl Session {
             // Update session key set
             let mut keyset = self.section_key_set.lock().await;
             if *keyset == Some(info.pk_set.clone()) {
-                trace!("We have already received this info.");
+                trace!("We have previously received the key set already.");
                 return Ok(());
             }
             *keyset = Some(info.pk_set.clone());
@@ -666,7 +706,7 @@ impl Session {
         }
 
         if original_known_elders != received_elders {
-            debug!("Connecting to new elders");
+            debug!("Connecting to new set of Elders: {:?}", received_elders);
             let new_elder_addresses = received_elders.keys().cloned().collect::<BTreeSet<_>>();
             let updated_contacts = new_elder_addresses.iter().cloned().collect::<Vec<_>>();
             let old_elders = original_known_elders
@@ -687,7 +727,7 @@ impl Session {
         }
     }
 
-    /// Handle messages intended for client consumption (re: queries + commands)
+    // Handle messages intended for client consumption (re: queries + commands)
     async fn handle_client_msg(&self, msg: Message, src: SocketAddr) {
         let notifier = self.notifier.clone();
         match msg.clone() {
@@ -707,9 +747,10 @@ impl Session {
                     trace!("Sender channel found for query response");
                     let _ = sender.send(Ok(response)).await;
                 } else {
-                    warn!(
-                        "No matching pending query found for elder {:?}  and message {:?}",
-                        src, correlation_id
+                    trace!(
+                        "No matching pending query found for elder {:?} and message {:?}",
+                        src,
+                        correlation_id
                     );
                 }
             }
@@ -742,13 +783,13 @@ impl Session {
                         .send(Err(Error::from((error.clone(), correlation_id))))
                         .await;
                 } else {
-                    warn!("No sender subscribing and listening for errors relating to message {:?}. Error returned is: {:?}", correlation_id, error)
+                    warn!("No sender subscribing and listening for errors relating to message {}. Error returned is: {:?}", correlation_id, error)
                 }
 
                 let _ = notifier.send(Error::from((error, correlation_id)));
             }
             msg => {
-                warn!("another message type received {:?}", msg);
+                warn!("Ignoring unexpected message type received: {:?}", msg);
             }
         };
     }
@@ -759,7 +800,7 @@ pub(crate) struct QueryResult {
     pub msg_id: MessageId,
 }
 
-/// Choose the best response when no single responses passes the threshold
+// Choose the best response when no single responses passes the threshold
 fn select_best_of_the_rest_response(
     current_winner: (Option<QueryResponse>, usize),
     threshold: usize,
@@ -774,7 +815,7 @@ fn select_best_of_the_rest_response(
     for (_, (message, votes)) in vote_map.iter() {
         number_of_responses += votes;
         trace!(
-            "Number of votes cast :{:?}. Threshold is: {:?} votes",
+            "Number of votes cast: {}. Threshold is: {} votes",
             number_of_responses,
             threshold
         );
@@ -782,7 +823,7 @@ fn select_best_of_the_rest_response(
         number_of_responses += received_errors;
 
         trace!(
-            "Total number of responses (votes and errors) :{:?}",
+            "Total number of responses (votes and errors): {}",
             number_of_responses
         );
 
@@ -953,7 +994,7 @@ impl Session {
     ) -> Result<bool, Error> {
         if let Some((src, message)) = incoming_messages.next().await {
             let message_type = WireMsg::deserialize(message)?;
-            warn!("Message received at listener from {:?}", &src);
+            trace!("Message received at listener from {:?}", &src);
             match message_type {
                 MessageType::SectionInfo(msg) => {
                     match self.handle_sectioninfo_msg(msg, src).await {
