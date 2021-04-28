@@ -14,6 +14,7 @@ use futures::{
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Endpoint, IncomingMessages, QuicP2p};
+use rand::seq::IteratorRandom;
 use sn_data_types::{
     Blob, Keypair, PrivateBlob, PublicBlob, PublicKey, Signature, TransferValidated,
 };
@@ -32,7 +33,6 @@ use std::{
     time::Duration,
 };
 use threshold_crypto::PublicKeySet;
-use tiny_keccak::{Hasher, Sha3};
 use tokio::{
     sync::mpsc::{channel, Sender, UnboundedSender},
     task::JoinHandle,
@@ -40,12 +40,12 @@ use tokio::{
 };
 use xor_name::{Prefix, XorName};
 
-static NUMBER_OF_RETRIES: usize = 3;
+// Number of attemps when retrying to send a message to a node
+const NUMBER_OF_RETRIES: usize = 3;
+// Number of Elders subset to send queries to
+const NUM_OF_ELDERS_SUBSET_FOR_QUERIES: usize = 3;
 
-/// Simple map for correlating a response with votes from various elder responses.
-type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
-
-// channel for sending result of transfer validation
+// Channel for sending result of transfer validation
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
@@ -228,26 +228,43 @@ impl Session {
     /// Send a Query `Message` to the network awaiting for the response.
     pub(crate) async fn send_query(&self, msg: &Message) -> Result<QueryResult, Error> {
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
         let pending_queries = self.pending_queries.clone();
-
         let msg_id = msg.id();
+        let msg_bytes = msg.serialize()?;
+        let mut pending_sending = Vec::new();
+
+        // Force the `rand::thread_rng` to stay in a scope with
+        // no `.await` between calls to it, since it is `!Send`
+        let elders: Vec<SocketAddr> = {
+            let connected_elders = self.connected_elders.lock().await;
+            // We select a random subset of NUM_OF_ELDERS_SUBSET_FOR_QUERIES
+            // from connected Elders to send the query to
+            let mut rng = &mut rand::thread_rng();
+            connected_elders
+                .keys()
+                .cloned()
+                .choose_multiple(&mut rng, NUM_OF_ELDERS_SUBSET_FOR_QUERIES)
+        };
+
+        let elders_len = elders.len();
+        if elders_len < NUM_OF_ELDERS_SUBSET_FOR_QUERIES {
+            error!(
+                "Not enough Elder connections: {}, minimum required: {}",
+                elders_len, NUM_OF_ELDERS_SUBSET_FOR_QUERIES
+            );
+            return Err(Error::InsufficientElderConnections(elders_len));
+        }
 
         info!(
-            "Sending query message {:?} w/ id: {:?}, to Elders: {:?}",
-            msg, msg_id, elders
+            "Sending query message {:?} w/ id: {:?}, to {} randomly chosen Elders: {:?}",
+            msg, msg_id, elders_len, elders
         );
 
-        let msg_bytes = msg.serialize()?;
+        // We send the same message to all Elders concurrently
+        let mut tasks = Vec::new();
 
-        // We send the same message to all Elders concurrently,
-        // and we try to find a majority on the responses
-        let mut tasks = Vec::default();
-
-        let mut pending_sending = vec![];
-
-        // set up listeners
-        for socket in elders.clone() {
+        // Set up response listeners
+        for socket in elders {
             // Create a new stream here to not have to worry about filtering replies
             let msg = msg.clone();
             let pending_queries = pending_queries.clone();
@@ -268,32 +285,33 @@ impl Session {
             pending_sending.push((socket, msg_id, msg, receiver));
         }
 
-        debug!("All listeners set up for the query w/ id: {:?}", msg_id);
+        debug!(
+            "All response listeners set up for the query w/ id: {:?}",
+            msg_id
+        );
 
         // Now that we have all listeners set up, we send out the queries
         for (socket, msg_id, message, mut receiver) in pending_sending {
             let msg_bytes_clone = msg_bytes.clone();
             let pending_queries = pending_queries.clone();
-
             let endpoint = endpoint.clone();
 
             let task_handle = tokio::spawn(async move {
                 endpoint.connect_to(&socket).await?;
 
-                // Retry queries that failed due to connection issues
+                // Retry queries that failed due to connection issues only
                 let mut result = Err(Error::ElderQuery);
-                let mut attempts: usize = 1;
-
-                while attempts <= NUMBER_OF_RETRIES {
+                for attempt in 0..NUMBER_OF_RETRIES + 1 {
                     let msg_bytes_clone = msg_bytes_clone.clone();
 
                     if let Err(err) = endpoint.send_message(msg_bytes_clone, &socket).await {
                         error!(
                             "Try #{:?} @ {:?}, failed sending query message: {}",
-                            attempts, socket, err
+                            attempt + 1,
+                            socket,
+                            err
                         );
                         result = Err(Error::SendingQuery);
-                        attempts += 1;
                     } else {
                         trace!(
                             "Message {:?} sent to {}. Waiting for response...",
@@ -313,11 +331,7 @@ impl Session {
                     }
                 }
 
-                let _ = pending_queries
-                    .clone()
-                    .lock()
-                    .await
-                    .remove(&(socket, msg_id));
+                let _ = pending_queries.lock().await.remove(&(socket, msg_id));
 
                 result
             });
@@ -325,55 +339,36 @@ impl Session {
             tasks.push(task_handle);
         }
 
-        // Let's figure out what's the value which is in the majority of responses obtained
-        let mut vote_map = VoteMap::default();
-        let mut received_errors = 0;
-
-        let (threshold, chunk_addr) = match msg {
-            Message::Query {
-                query: Query::Data(DataQuery::Blob(BlobRead::Get(address))),
-                ..
-            } => {
-                trace!("Only one valid Chunk response is needed");
-                (1, Some(address))
-            }
-            _other => {
-                // We assume there can be at most two bysantine Elders in a section
-                let threshold = 3;
-                trace!("Vote threshold is: {:?}", threshold);
-                (threshold, None)
-            }
+        let chunk_addr = if let Message::Query {
+            query: Query::Data(DataQuery::Blob(BlobRead::Get(address))),
+            ..
+        } = msg
+        {
+            Some(address)
+        } else {
+            None
         };
 
-        let connected_elders_count = self.connected_elders_count().await;
-        if connected_elders_count < threshold {
-            error!(
-                "Not enough Elder connections: {}, minimum required: {}",
-                connected_elders_count, threshold
-            );
-            return Err(Error::InsufficientElderConnections(connected_elders_count));
-        }
-
-        let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
-
-        // Let's await for all responses
-        let mut has_elected_a_response = false;
+        // TODO:
+        // We are now simply accepting the very first valid response we receive,
+        // but we may want to revisit this to compare multiple responses and validate them,
+        // similar to what we used to do up to the follosing commit:
+        // https://github.com/maidsafe/sn_client/blob/9091a4f1f20565f25d3a8b00571cc80751918928/src/connection_manager.rs#L328
+        //
+        // For Chunk responses we already validate its hash matches the xorname requested from,
+        // so we don't need more than one valid response to prevent from accepting invaid responses
+        // from byzantine nodes, however for mutable data (non-Chunk esponses) we will
+        // have to review the approch.
         let mut todo = tasks;
-
-        while !has_elected_a_response {
-            debug!(
-                "Still not chosen a response ({} reponses out of expected {})....",
-                winner.1,
-                threshold + 1
-            );
-            if todo.is_empty() {
-                warn!("No more responses to consider");
-                break;
-            }
-
+        let mut responses_discarded = 0;
+        let response = loop {
             let (task_result, _, remaining_futures) = select_all(todo.into_iter()).await;
             todo = remaining_futures;
             match (task_result, chunk_addr) {
+                (Err(error), _) => {
+                    error!("Error spawning query task: {:?} ", error);
+                    responses_discarded += 1;
+                }
                 (Ok(Ok(QueryResponse::GetBlob(Ok(blob)))), Some(chunk_address)) => {
                     // We are dealing with Chunk query responses, thus we validate its hash
                     // matches its xorname, if so, we don't need to await for more responses
@@ -391,68 +386,44 @@ impl Session {
 
                     if *chunk_address.name() == xorname {
                         trace!("We received a valid Chunk so no more responses needed for query w/ id: {}", msg_id);
-                        winner = (Some(QueryResponse::GetBlob(Ok(blob))), 1);
-                        has_elected_a_response = true;
+                        break Some(QueryResponse::GetBlob(Ok(blob)));
                     } else {
                         // the Chunk content doesn't match its Xorname,
                         // this is suspicious and it could be a byzantine node
                         warn!("We received an invalid Chunk response from one of the nodes");
-                        received_errors += 1;
+                        responses_discarded += 1;
                     }
                 }
                 (Ok(Ok(response)), _) => {
                     debug!("QueryResponse received is: {:#?}", response);
-
-                    // bincode here as we're using the internal qr, without serialisation
-                    // this is only used internally to sn_client
-                    let mut key = [0; 32];
-                    let mut hasher = Sha3::v256();
-                    hasher.update(&serialize(&response)?);
-                    hasher.finalize(&mut key);
-
-                    let (_, counter) = vote_map.entry(key).or_insert((response.clone(), 0));
-                    *counter += 1;
-
-                    // First, see if this latest response brings us above the threshold for any response
-                    if *counter > threshold {
-                        trace!("Enough votes to be above response threshold");
-
-                        winner = (Some(response.clone()), *counter);
-                        has_elected_a_response = true;
-                    }
+                    break Some(response);
                 }
                 (Ok(other), _) => {
                     warn!(
                         "Unexpected message in reply to query (retrying): {:?}",
                         other
                     );
-                    received_errors += 1;
-                }
-                (Err(error), _) => {
-                    error!("Error spawning query task: {:?} ", error);
-                    received_errors += 1;
+                    responses_discarded += 1;
                 }
             }
 
-            // Second, let's handle no winner if we have > threshold responses.
-            if !has_elected_a_response {
-                winner = select_best_of_the_rest_response(
-                    winner,
-                    threshold,
-                    &vote_map,
-                    received_errors,
-                    &mut has_elected_a_response,
-                );
+            debug!(
+                "Still not chosen a response, {} responses discarded so far",
+                responses_discarded
+            );
+
+            if todo.is_empty() {
+                warn!("No more responses to consider");
+                break None;
             }
-        }
+        };
 
         debug!(
             "Response obtained after querying {} nodes: {:?}",
-            winner.1, winner.0
+            elders_len, response
         );
 
-        winner
-            .0
+        response
             .map(|response| QueryResult { response, msg_id })
             .ok_or(Error::NoResponse)
     }
@@ -798,57 +769,6 @@ impl Session {
 pub(crate) struct QueryResult {
     pub response: QueryResponse,
     pub msg_id: MessageId,
-}
-
-// Choose the best response when no single responses passes the threshold
-fn select_best_of_the_rest_response(
-    current_winner: (Option<QueryResponse>, usize),
-    threshold: usize,
-    vote_map: &VoteMap,
-    received_errors: usize,
-    has_elected_a_response: &mut bool,
-) -> (Option<QueryResponse>, usize) {
-    trace!("No response selected yet, checking if fallback needed");
-    let mut number_of_responses = 0;
-    let mut most_popular_response = current_winner;
-
-    for (_, (message, votes)) in vote_map.iter() {
-        number_of_responses += votes;
-        trace!(
-            "Number of votes cast: {}. Threshold is: {} votes",
-            number_of_responses,
-            threshold
-        );
-
-        number_of_responses += received_errors;
-
-        trace!(
-            "Total number of responses (votes and errors): {}",
-            number_of_responses
-        );
-
-        if most_popular_response.0 == None {
-            most_popular_response = (Some(message.clone()), *votes);
-        }
-
-        if votes > &most_popular_response.1 {
-            trace!("Reselecting winner, with {:?} votes: {:?}", votes, message);
-
-            most_popular_response = (Some(message.clone()), *votes)
-        }
-
-        trace!(
-            "Current most popular response is {:?}",
-            most_popular_response.0
-        );
-    }
-
-    if number_of_responses > threshold {
-        trace!("No clear response above the threshold, so choosing most popular response with: {:?} votes: {:?}", most_popular_response.1, most_popular_response.0);
-        *has_elected_a_response = true;
-    }
-
-    most_popular_response
 }
 
 #[derive(Clone)]
