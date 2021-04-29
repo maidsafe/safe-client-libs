@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.53.4](https://github.com/maidsafe/sn_client/compare/v0.53.3...v0.53.4) (2021-04-29)
+
+
+### Features
+
+* **connMgr:** send queries to the 3 Elders closest to the name of target data ([94526ee](https://github.com/maidsafe/sn_client/commit/94526eede01c3722f671f7b41d43c88dc02cdb75))
+
 ### [0.53.3](https://github.com/maidsafe/sn_client/compare/v0.53.2...v0.53.3) (2021-04-29)
 
 ### [0.53.2](https://github.com/maidsafe/sn_client/compare/v0.53.1...v0.53.2) (2021-04-28)
