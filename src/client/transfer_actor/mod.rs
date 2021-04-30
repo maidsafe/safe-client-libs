@@ -6,7 +6,14 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::{client::Client, errors::Error};
+// Module for token balance management
+mod balance_management;
+// Module for simulating token for testing
+mod simulated_payouts;
+// Module containing all PUT apis
+mod write_apis;
+
+use crate::{Client, Error};
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
@@ -17,13 +24,6 @@ use sn_messaging::client::{
 };
 use sn_transfers::{ActorEvent, TransferInitiated};
 use tokio::sync::mpsc::channel;
-
-/// Module for token balance management
-pub mod balance_management;
-/// Module for simulating token for testing
-pub mod simulated_payouts;
-/// Module containing all PUT apis
-pub mod write_apis;
 
 /// Actual Transfer Actor
 pub use sn_transfers::TransferActor as SafeTransferActor;

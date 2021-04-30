@@ -749,19 +749,19 @@ pub(crate) struct QueryResult {
 
 #[derive(Clone)]
 pub struct Session {
-    pub qp2p: QuicP2p,
-    pub notifier: UnboundedSender<Error>,
-    pub pending_queries: PendingQueryResponses,
-    pub pending_transfers: PendingTransferValidations,
-    pub endpoint: Option<Endpoint>,
+    qp2p: QuicP2p,
+    notifier: UnboundedSender<Error>,
+    pending_queries: PendingQueryResponses,
+    pending_transfers: PendingTransferValidations,
+    endpoint: Option<Endpoint>,
     /// elders we've managed to connect to
-    pub connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
+    connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
     /// all elders we know about from SectionInfo messages
-    pub all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
+    all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
-    pub section_prefix: Arc<Mutex<Option<Prefix>>>,
-    pub signer: Signer,
-    pub is_connecting_to_new_elders: bool,
+    section_prefix: Arc<Mutex<Option<Prefix>>>,
+    signer: Signer,
+    is_connecting_to_new_elders: bool,
 }
 
 impl Session {
@@ -796,11 +796,6 @@ impl Session {
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
         let elders = self.connected_elders.lock().await;
         elders.values().cloned().collect()
-    }
-
-    /// Get the elders count of our connected section
-    pub async fn connected_elders_count(&self) -> usize {
-        self.connected_elders.lock().await.len()
     }
 
     /// Get the elders count of our section elders as provided by SectionInfo

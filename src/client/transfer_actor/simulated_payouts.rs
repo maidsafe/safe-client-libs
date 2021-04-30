@@ -6,18 +6,17 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use sn_data_types::Token;
-
 #[cfg(feature = "simulated-payouts")]
 use sn_data_types::Transfer;
 
 #[cfg(feature = "simulated-payouts")]
 use sn_messaging::client::{Cmd, TransferCmd};
 
-use crate::{client::Client, errors::Error};
-
 #[cfg(feature = "simulated-payouts")]
 use log::info;
+
+use crate::{Client, Error};
+use sn_data_types::Token;
 
 /// Handle all token transfers and Write API requests for a given ClientId.
 impl Client {

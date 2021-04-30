@@ -69,11 +69,13 @@
     unused_results
 )]
 
-// Export public client interface.
+mod connection_manager;
+mod errors;
 
-pub use self::client::{map_info, Client, MapInfo};
-pub use self::errors::{Error, ErrorMessage, TransfersError};
-// pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
+// Export public API.
+
+pub use client::Client;
+pub use errors::{Error, ErrorMessage, TransfersError};
 pub use qp2p::Config as QuicP2pConfig;
 
 /// Client trait and related constants.
@@ -84,7 +86,3 @@ pub mod config_handler;
 pub mod crypto;
 /// Utility functions.
 pub mod utils;
-
-mod connection_manager;
-mod errors;
-// mod network_event;

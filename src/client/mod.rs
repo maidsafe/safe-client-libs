@@ -6,32 +6,15 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-/// `MapInfo` utilities.
-pub mod map_info;
-
-/// Map APIs
-pub mod map_apis;
-
-/// Blob APIs
-pub mod blob_apis;
-
-/// Safe Transfers wrapper, with token APIs
-pub mod transfer_actor;
-
-/// Sequence APIs
-pub mod sequence_apis;
-
-/// Register APIs
-pub mod register_apis;
-
-/// Blob storage for self encryption.
-pub mod blob_storage;
+mod blob_apis;
+mod blob_storage;
+mod map_apis;
+mod register_apis;
+mod sequence_apis;
+mod transfer_actor;
 
 // sn_transfers wrapper
-pub use self::map_info::MapInfo;
 pub use self::transfer_actor::SafeTransferActor;
-
-pub use blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use crate::{
     config_handler::Config,
@@ -54,15 +37,6 @@ use std::{
     {collections::HashSet, net::SocketAddr, sync::Arc},
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-
-/// Elder size
-pub const ELDER_SIZE: usize = 5;
-
-/// Capacity of the immutable data cache.
-pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
-
-/// Capacity of the Sequence CRDT local replica size.
-pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 
 /// Client object
 #[derive(Clone)]
@@ -257,7 +231,7 @@ impl Client {
 
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
-pub async fn attempt_bootstrap(
+async fn attempt_bootstrap(
     qp2p_config: QuicP2pConfig,
     keypair: Keypair,
     notifier: UnboundedSender<Error>,

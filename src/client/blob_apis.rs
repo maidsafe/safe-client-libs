@@ -6,11 +6,11 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::{
-    client::blob_storage::{BlobStorage, BlobStorageDryRun},
-    errors::Error,
+use super::{
+    blob_storage::{BlobStorage, BlobStorageDryRun},
     Client,
 };
+use crate::Error;
 use bincode::{deserialize, serialize};
 use log::{info, trace};
 use self_encryption::{DataMap, SelfEncryptor};
@@ -27,6 +27,7 @@ enum DataMapLevel {
     // serialized blob that holds a non-root data map
     Child(DataMap),
 }
+
 impl Client {
     /// Read the contents of a blob from the network. The contents might be spread across
     /// different blobs in the network. This function invokes the self-encryptor and returns

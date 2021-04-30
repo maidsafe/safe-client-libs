@@ -6,8 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::errors::Error;
-use crate::Client;
+use super::Client;
+use crate::Error;
 use log::trace;
 
 use sn_data_types::{
