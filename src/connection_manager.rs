@@ -50,7 +50,7 @@ type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
 type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
-type PendingQueryResponses = Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>;
+type PendingQueryResponses = Arc<Mutex<HashMap<MessageId, QueryResponseSender>>>;
 
 impl Session {
     /// Bootstrap to the network maintaining connections to several nodes.
@@ -230,7 +230,6 @@ impl Session {
         let data_name = query.dst_address();
         let endpoint = self.endpoint()?.clone();
         let pending_queries = self.pending_queries.clone();
-        let mut pending_sending = Vec::new();
 
         let msg_id = MessageId::new();
         let msg = Message::Query { query, id: msg_id };
@@ -265,47 +264,30 @@ impl Session {
 
         // We send the same message to all Elders concurrently
         let mut tasks = Vec::new();
+        let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
+        let _ = pending_queries.lock().await.insert(msg_id, sender);
+
+        let chunk_addr = if let Message::Query {
+            query: Query::Data(DataQuery::Blob(BlobRead::Get(address))),
+            ..
+        } = &msg
+        {
+            Some(*address)
+        } else {
+            None
+        };
 
         // Set up response listeners
         for socket in elders {
-            // Create a new stream here to not have to worry about filtering replies
-            let msg = msg.clone();
-            let pending_queries = pending_queries.clone();
-
-            let (sender, receiver) = channel::<Result<QueryResponse, Error>>(7);
-
-            trace!(
-                "Inserting query listener for socket {:?}, and msg_id {:?}",
-                socket,
-                msg_id
-            );
-
-            let _ = pending_queries
-                .lock()
-                .await
-                .insert((socket, msg_id), sender);
-
-            pending_sending.push((socket, msg_id, msg, receiver));
-        }
-
-        debug!(
-            "All response listeners set up for the query w/ id: {:?}",
-            msg_id
-        );
-
-        // Now that we have all listeners set up, we send out the queries
-        for (socket, msg_id, message, mut receiver) in pending_sending {
-            let msg_bytes_clone = msg_bytes.clone();
-            let pending_queries = pending_queries.clone();
             let endpoint = endpoint.clone();
-
+            let msg_bytes = msg_bytes.clone();
             let task_handle = tokio::spawn(async move {
                 endpoint.connect_to(&socket).await?;
 
                 // Retry queries that failed due to connection issues only
                 let mut result = Err(Error::ElderQuery);
                 for attempt in 0..NUMBER_OF_RETRIES + 1 {
-                    let msg_bytes_clone = msg_bytes_clone.clone();
+                    let msg_bytes_clone = msg_bytes.clone();
 
                     if let Err(err) = endpoint.send_message(msg_bytes_clone, &socket).await {
                         error!(
@@ -317,40 +299,19 @@ impl Session {
                         result = Err(Error::SendingQuery);
                     } else {
                         trace!(
-                            "Message {:?} sent to {}. Waiting for response...",
-                            message,
+                            "Message with id {:?} sent to {}. Waiting for response...",
+                            &msg_id,
                             &socket
                         );
-
-                        result = if let Some(res) = receiver.recv().await {
-                            res
-                        } else {
-                            error!("Error from query response, non received");
-                            Err(Error::QueryReceiverError)
-                        };
-
-                        // we don't retry here even if it failed to obtain a response
+                        result = Ok(());
                         break;
                     }
                 }
-
-                let _ = pending_queries.lock().await.remove(&(socket, msg_id));
-
                 result
             });
 
             tasks.push(task_handle);
         }
-
-        let chunk_addr = if let Message::Query {
-            query: Query::Data(DataQuery::Blob(BlobRead::Get(address))),
-            ..
-        } = msg
-        {
-            Some(address)
-        } else {
-            None
-        };
 
         // TODO:
         // We are now simply accepting the very first valid response we receive,
@@ -361,18 +322,26 @@ impl Session {
         // For Chunk responses we already validate its hash matches the xorname requested from,
         // so we don't need more than one valid response to prevent from accepting invaid responses
         // from byzantine nodes, however for mutable data (non-Chunk esponses) we will
-        // have to review the approch.
+        // have to review the approach.
         let mut todo = tasks;
-        let mut responses_discarded = 0;
-        let response = loop {
+        let mut responses_discarded: usize = 0;
+
+        // Send all queries first
+        loop {
             let (task_result, _, remaining_futures) = select_all(todo.into_iter()).await;
             todo = remaining_futures;
-            match (task_result, chunk_addr) {
-                (Err(error), _) => {
-                    error!("Error spawning query task: {:?} ", error);
-                    responses_discarded += 1;
-                }
-                (Ok(Ok(QueryResponse::GetBlob(Ok(blob)))), Some(chunk_address)) => {
+            if let Err(error) = task_result {
+                error!("Error spawning task to send query: {:?} ", error);
+                responses_discarded += 1;
+            }
+            if todo.is_empty() {
+                break;
+            }
+        }
+
+        let response = loop {
+            match (receiver.recv().await, chunk_addr) {
+                (Some(Ok(QueryResponse::GetBlob(Ok(blob)))), Some(chunk_addr)) => {
                     // We are dealing with Chunk query responses, thus we validate its hash
                     // matches its xorname, if so, we don't need to await for more responses
                     debug!("Chunk QueryResponse received is: {:#?}", blob);
@@ -387,7 +356,7 @@ impl Session {
                         }
                     };
 
-                    if *chunk_address.name() == xorname {
+                    if *chunk_addr.name() == xorname {
                         trace!("We received a valid Chunk so no more responses needed for query w/ id: {}", msg_id);
                         break Some(QueryResponse::GetBlob(Ok(blob)));
                     } else {
@@ -397,26 +366,23 @@ impl Session {
                         responses_discarded += 1;
                     }
                 }
-                (Ok(Ok(response)), _) => {
+                (Some(Ok(response)), _) => {
                     debug!("QueryResponse received is: {:#?}", response);
                     break Some(response);
                 }
-                (Ok(other), _) => {
+                (Some(other), _) => {
                     warn!(
                         "Unexpected message in reply to query (retrying): {:?}",
                         other
                     );
                     responses_discarded += 1;
                 }
+                (None, _) => {
+                    debug!("QueryResponse channel closed.");
+                    break None;
+                }
             }
-
-            debug!(
-                "Still not chosen a response, {} responses discarded so far",
-                responses_discarded
-            );
-
-            if todo.is_empty() {
-                warn!("No more responses to consider");
+            if responses_discarded == elders_len {
                 break None;
             }
         };
@@ -425,6 +391,9 @@ impl Session {
             "Response obtained after querying {} nodes: {:?}",
             elders_len, response
         );
+
+        // Remove the response sender
+        let _ = pending_queries.lock().await.remove(&msg_id);
 
         response
             .map(|response| QueryResult { response, msg_id })
@@ -715,12 +684,11 @@ impl Session {
                     response
                 );
 
-                if let Some(sender) = self
-                    .pending_queries
-                    .lock()
-                    .await
-                    .remove(&(src, correlation_id))
-                {
+                // Note that this doesn't remove the sender from here since multiple
+                // responses corresponding to the same message ID might arrive.
+                // Once we are satisfied with the response this is channel is discarded in
+                // ConnectionManager::send_query
+                if let Some(sender) = self.pending_queries.lock().await.get(&correlation_id) {
                     trace!(
                         "Sender channel found for query response with correlation id {}",
                         correlation_id
@@ -728,8 +696,7 @@ impl Session {
                     let _ = sender.send(Ok(response)).await;
                 } else {
                     trace!(
-                        "No matching pending query found for elder {:?} and message {:?}",
-                        src,
+                        "No matching pending query found for message ID {:?}",
                         correlation_id
                     );
                 }
