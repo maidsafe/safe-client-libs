@@ -13,9 +13,6 @@ env:
   # Deny all compiler warnings.
   RUSTFLAGS: "-D warnings"
   NODE_COUNT: "11" # this is a single section
-  # I've seen 30 nodes work on CI atm.
-  SAFE_AUTH_PASSPHRASE: "x"
-  SAFE_AUTH_PASSWORD: "y"
 
 jobs:
   tests:
@@ -47,32 +44,31 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
-      
-      # If we need a custom CLI version (testing out new APIs/messages etc, 
+
+      # If we need a custom CLI version (testing out new APIs/messages etc,
       # we'll need to supply a modified script here I suppose)
-      - name: Place Safe CLI
-        run:  curl -so- https://sn-api.s3.amazonaws.com/install.sh | bash
-     
-      - run: ~/.safe/cli/safe -V
-      - run: ~/.safe/cli/safe node install
+      - name: Download Safe CLI
+        run: curl -so- https://sn-api.s3.amazonaws.com/install.sh | bash
 
-      - name: Check Node Versions
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-        run : |
-          echo $PATH
-          ~/.safe/node/sn_node -V
-      
-      - run: ~/.safe/cli/safe node run-baby-fleming 
+      - name: Check Safe CLI version
+        run: ~/.safe/cli/safe -V
 
+      - name: Install sn_node
+        run: ~/.safe/cli/safe node install
+
+      - name: Check sn_node Version
+        run: ~/.safe/cli/safe node bin-version
+
+      - name: Start local network
+        run: ~/.safe/cli/safe node run-baby-fleming --nodes $NODE_COUNT
 
       - name: E2E Tests Against local network
         shell: bash
-        run: cargo test --release
-
+        run: cargo test --release blob_apis
 
       # TODO: Upload all logs as artifacts....
       - name: Node Logs
         run: |
-          ls $HOME/.safe/node/local-test-network
-          cat $HOME/.safe/node/local-test-network/sn-node-genesis/sn_node.log
+          ls $HOME/.safe/node/baby-fleming-nodes
+          cat $HOME/.safe/node/baby-fleming-nodes/sn-node-genesis/sn_node.log
         if: failure()

@@ -439,9 +439,9 @@ mod tests {
         Ok(())
     }
 
-    // Test putting, getting, and deleting unpub blob.
+    // Test putting, getting, and deleting private blob.
     #[tokio::test]
-    pub async fn unpub_blob_test() -> Result<()> {
+    pub async fn priv_blob_test() -> Result<()> {
         let client = create_test_client().await?;
 
         let pk = client.public_key().await;
@@ -475,8 +475,8 @@ mod tests {
             res = client.read_blob(address, None, None).await;
         }
 
-        // Test putting unpub blob with the same value.
-        // Should conflict because duplication does .await?;not apply to unpublished data.
+        // Test putting private blob with the same value.
+        // Should conflict because duplication does not apply to private data.
         let _ = client.store_private_blob(&value).await;
 
         let _ = match tokio::time::timeout(
@@ -523,14 +523,14 @@ mod tests {
 
             fetched_data = client.read_blob(address, None, None).await;
         }
-        // Test putting unpub blob with the same value again. Should not conflict.
+        // Test putting private blob with the same value again. Should not conflict.
         let _ = client.store_private_blob(&value).await?;
 
         Ok(())
     }
 
     #[tokio::test]
-    pub async fn unpub_delete_large() -> Result<()> {
+    pub async fn priv_delete_large() -> Result<()> {
         let client = create_test_client().await?;
 
         let value = generate_random_vector::<u8>(1024 * 1024);
