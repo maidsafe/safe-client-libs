@@ -69,7 +69,7 @@
     unused_results
 )]
 
-mod connection_manager;
+mod connections;
 mod errors;
 
 // Export public API.

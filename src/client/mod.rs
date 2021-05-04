@@ -18,7 +18,7 @@ pub use self::transfer_actor::SafeTransferActor;
 
 use crate::{
     config_handler::Config,
-    connection_manager::{QueryResult, Session, Signer},
+    connections::{QueryResult, Session, Signer},
     errors::Error,
 };
 use crdts::Dot;

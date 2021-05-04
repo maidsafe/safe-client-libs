@@ -6,51 +6,34 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use super::{QueryResult, Session};
 use crate::Error;
 use bincode::serialize;
-use futures::{
-    future::{join_all, select_all},
-    lock::Mutex,
-};
+use futures::future::{join_all, select_all};
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
-use qp2p::{self, Config as QuicP2pConfig, Endpoint, IncomingMessages, QuicP2p};
-use sn_data_types::{
-    Blob, Keypair, PrivateBlob, PublicBlob, PublicKey, Signature, TransferValidated,
-};
+use sn_data_types::{Blob, PrivateBlob, PublicBlob, TransferValidated};
 use sn_messaging::{
-    client::{BlobRead, DataQuery, Event, Message, Query, QueryResponse},
-    section_info::{
-        Error as SectionInfoError, GetSectionResponse, Message as SectionInfoMsg, SectionInfo,
-    },
-    MessageId, MessageType, WireMsg,
+    client::{BlobRead, DataQuery, Message, Query, QueryResponse},
+    section_info::Message as SectionInfoMsg,
+    MessageId,
 };
 use std::{
-    borrow::Borrow,
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     net::SocketAddr,
-    sync::Arc,
     time::Duration,
 };
-use threshold_crypto::PublicKeySet;
 use tokio::{
-    sync::mpsc::{channel, Sender, UnboundedSender},
+    sync::mpsc::{channel, Sender},
     task::JoinHandle,
     time::timeout,
 };
-use xor_name::{Prefix, XorName};
+use xor_name::XorName;
 
 // Number of attemps when retrying to send a message to a node
 const NUMBER_OF_RETRIES: usize = 3;
 // Number of Elders subset to send queries to
 const NUM_OF_ELDERS_SUBSET_FOR_QUERIES: usize = 3;
-
-// Channel for sending result of transfer validation
-type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
-type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
-
-type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
-type PendingQueryResponses = Arc<Mutex<HashMap<MessageId, QueryResponseSender>>>;
 
 impl Session {
     /// Bootstrap to the network maintaining connections to several nodes.
@@ -106,8 +89,7 @@ impl Session {
             }
         }
 
-        self.spawn_message_listener_thread(incoming_messages)
-            .await?;
+        self.spawn_message_listener_thread(incoming_messages).await;
 
         Ok(())
     }
@@ -160,17 +142,6 @@ impl Session {
             error!("Sending the message to {} Elders failed", failures);
         }
 
-        Ok(())
-    }
-
-    /// Remove a pending transfer sender from the listener map
-    pub async fn remove_pending_transfer_sender(&self, msg_id: &MessageId) -> Result<(), Error> {
-        let pending_transfers = self.pending_transfers.clone();
-        debug!("Pending transfers at this point: {:?}", pending_transfers);
-        let mut listeners = pending_transfers.lock().await;
-        let _ = listeners
-            .remove(msg_id)
-            .ok_or(Error::NoTransferValidationListener)?;
         Ok(())
     }
 
@@ -400,10 +371,11 @@ impl Session {
             .ok_or(Error::NoResponse)
     }
 
-    // Private helpers
-
     // Get section info from the peer we have bootstrapped with.
-    async fn send_get_section_query(&self, bootstrapped_peer: &SocketAddr) -> Result<(), Error> {
+    pub(crate) async fn send_get_section_query(
+        &self,
+        bootstrapped_peer: &SocketAddr,
+    ) -> Result<(), Error> {
         if self.is_connecting_to_new_elders {
             // This should ideally be unreachable code. Leaving it while this is a WIP
             error!("Already attempting elder connections, not sending section query until that is complete.");
@@ -425,16 +397,17 @@ impl Session {
         Ok(())
     }
 
-    fn disconnect_from_peers(&self, peers: Vec<SocketAddr>) -> Result<(), Error> {
+    pub(crate) fn disconnect_from_peers(&self, peers: Vec<SocketAddr>) -> Result<(), Error> {
         for elder in peers {
             self.endpoint()?.disconnect_from(&elder)?;
         }
+
         Ok(())
     }
 
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
-    async fn connect_to_elders(&mut self) -> Result<(), Error> {
+    pub(crate) async fn connect_to_elders(&mut self) -> Result<(), Error> {
         self.is_connecting_to_new_elders = true;
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
@@ -442,8 +415,8 @@ impl Session {
         let supermajority = self.supermajority().await;
 
         if self.known_elders_count().await == 0 {
+            // this is not necessarily an error in case we didn't get elder info back yet
             warn!("Not attempted to connect, insufficient elders yet known");
-            // this is not necessarily an error in case we didnt get elder info back yet
         }
 
         let endpoint = self.endpoint()?;
@@ -551,290 +524,9 @@ impl Session {
         Ok(())
     }
 
-    // Handle received network info messages
-    async fn handle_sectioninfo_msg(
-        &mut self,
-        msg: SectionInfoMsg,
-        src: SocketAddr,
-    ) -> Result<(), Error> {
-        trace!("Handling network info message {:?}", msg);
+    // Private helpers
 
-        match &msg {
-            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Success(info)) => {
-                debug!("GetSectionResponse::Success!");
-                self.update_session_info(info).await
-            }
-            SectionInfoMsg::RegisterEndUserError(error)
-            | SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(error)) => {
-                warn!("Message was interrupted due to {:?}. This will most likely need to be sent again.", error);
-
-                if let SectionInfoError::InvalidBootstrap(_) = error {
-                    debug!("Attempting to connect to elders again");
-                    self.connect_to_elders().await?;
-                }
-
-                if let SectionInfoError::TargetSectionInfoOutdated(info) = error {
-                    trace!("Updated network info: ({:?})", info);
-                    self.update_session_info(info).await?;
-                }
-                Ok(())
-            }
-            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
-                trace!("GetSectionResponse::Redirect, reboostrapping with provided peers");
-                // Disconnect from peer that sent us the redirect, connect to the new elders provided and
-                // request the section info again.
-                self.disconnect_from_peers(vec![src])?;
-                let endpoint = self.endpoint()?.clone();
-                self.qp2p.update_bootstrap_contacts(elders);
-                let boostrapped_peer = self.qp2p.rebootstrap(&endpoint, elders).await?;
-                self.send_get_section_query(&boostrapped_peer).await?;
-
-                Ok(())
-            }
-            SectionInfoMsg::SectionInfoUpdate(update) => {
-                let correlation_id = update.correlation_id;
-                error!("MessageId {:?} was interrupted due to infrastructure updates. This will most likely need to be sent again. Update was : {:?}", correlation_id, update);
-                if let SectionInfoError::TargetSectionInfoOutdated(info) = update.clone().error {
-                    trace!("Updated network info: ({:?})", info);
-                    self.update_session_info(&info).await?;
-                }
-                Ok(())
-            }
-            SectionInfoMsg::RegisterEndUserCmd { .. } | SectionInfoMsg::GetSectionQuery(_) => {
-                Err(Error::UnexpectedMessageOnJoin(format!(
-                    "bootstrapping failed since an invalid response ({:?}) was received",
-                    msg
-                )))
-            }
-        }
-    }
-
-    // Apply updated info to a network session, and trigger connections
-    async fn update_session_info(&mut self, info: &SectionInfo) -> Result<(), Error> {
-        let original_known_elders = self.all_known_elders.lock().await.clone();
-
-        // Change this once sn_messaging is updated
-        let received_elders = info
-            .elders
-            .iter()
-            .map(|(name, addr)| (*addr, *name))
-            .collect::<BTreeMap<_, _>>();
-
-        // Obtain the addresses of the Elders
-        trace!(
-            "Updating session info! Received elders: ({:?})",
-            received_elders
-        );
-
-        {
-            // Update session key set
-            let mut keyset = self.section_key_set.lock().await;
-            if *keyset == Some(info.pk_set.clone()) {
-                trace!("We have previously received the key set already.");
-                return Ok(());
-            }
-            *keyset = Some(info.pk_set.clone());
-        }
-
-        {
-            // update section prefix
-            let mut prefix = self.section_prefix.lock().await;
-            *prefix = Some(info.prefix);
-        }
-
-        {
-            // Update session elders
-            let mut session_elders = self.all_known_elders.lock().await;
-            *session_elders = received_elders.clone();
-        }
-
-        if original_known_elders != received_elders {
-            debug!("Connecting to new set of Elders: {:?}", received_elders);
-            let new_elder_addresses = received_elders.keys().cloned().collect::<BTreeSet<_>>();
-            let updated_contacts = new_elder_addresses.iter().cloned().collect::<Vec<_>>();
-            let old_elders = original_known_elders
-                .iter()
-                .filter_map(|(peer_addr, _)| {
-                    if !new_elder_addresses.contains(peer_addr) {
-                        Some(*peer_addr)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            self.disconnect_from_peers(old_elders)?;
-            self.qp2p.update_bootstrap_contacts(&updated_contacts);
-            self.connect_to_elders().await
-        } else {
-            Ok(())
-        }
-    }
-
-    // Handle messages intended for client consumption (re: queries + commands)
-    async fn handle_client_msg(&self, msg: Message, src: SocketAddr) {
-        match msg {
-            Message::QueryResponse {
-                response,
-                correlation_id,
-                ..
-            } => {
-                trace!(
-                    "Query response (correlation id: {}): {:?}",
-                    correlation_id,
-                    response
-                );
-
-                // Note that this doesn't remove the sender from here since multiple
-                // responses corresponding to the same message ID might arrive.
-                // Once we are satisfied with the response this is channel is discarded in
-                // ConnectionManager::send_query
-                if let Some(sender) = self.pending_queries.lock().await.get(&correlation_id) {
-                    trace!(
-                        "Sender channel found for query response with correlation id {}",
-                        correlation_id
-                    );
-                    let _ = sender.send(Ok(response)).await;
-                } else {
-                    trace!(
-                        "No matching pending query found for message ID {:?}",
-                        correlation_id
-                    );
-                }
-            }
-            Message::Event {
-                event,
-                correlation_id,
-                ..
-            } => {
-                if let Event::TransferValidated { event, .. } = event {
-                    if let Some(sender) =
-                        self.pending_transfers.lock().await.get_mut(&correlation_id)
-                    {
-                        info!("Accumulating SignatureShare");
-                        let _ = sender.send(Ok(event)).await;
-                    } else {
-                        warn!("No matching transfer validation event listener found for elder {:?} and message {:?}", src, correlation_id);
-                        warn!("It may be that this transfer is complete and the listener cleaned up already.");
-                        trace!("Event received was {:?}", event);
-                    }
-                }
-            }
-            Message::CmdError {
-                error,
-                correlation_id,
-                ..
-            } => {
-                if let Some(sender) = self.pending_transfers.lock().await.get_mut(&correlation_id) {
-                    debug!("Cmd Error was received, sending on channel to caller");
-                    let _ = sender
-                        .send(Err(Error::from((error.clone(), correlation_id))))
-                        .await;
-                } else {
-                    warn!("No sender subscribing and listening for errors relating to message {}. Error returned is: {:?}", correlation_id, error)
-                }
-
-                let _ = self.notifier.send(Error::from((error, correlation_id)));
-            }
-            msg => {
-                warn!("Ignoring unexpected message type received: {:?}", msg);
-            }
-        };
-    }
-}
-
-pub(crate) struct QueryResult {
-    pub response: QueryResponse,
-    pub msg_id: MessageId,
-}
-
-#[derive(Clone)]
-pub struct Session {
-    qp2p: QuicP2p,
-    notifier: UnboundedSender<Error>,
-    pending_queries: PendingQueryResponses,
-    pending_transfers: PendingTransferValidations,
-    endpoint: Option<Endpoint>,
-    /// elders we've managed to connect to
-    connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
-    /// all elders we know about from SectionInfo messages
-    all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
-    pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
-    section_prefix: Arc<Mutex<Option<Prefix>>>,
-    signer: Signer,
-    is_connecting_to_new_elders: bool,
-}
-
-impl Session {
-    pub fn new(
-        qp2p_config: QuicP2pConfig,
-        signer: Signer,
-        notifier: UnboundedSender<Error>,
-    ) -> Result<Self, Error> {
-        debug!("QP2p config: {:?}", qp2p_config);
-
-        let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), true)?;
-        Ok(Session {
-            qp2p,
-            notifier,
-            pending_queries: Arc::new(Mutex::new(HashMap::default())),
-            pending_transfers: Arc::new(Mutex::new(HashMap::default())),
-            endpoint: None,
-            section_key_set: Arc::new(Mutex::new(None)),
-            connected_elders: Arc::new(Mutex::new(Default::default())),
-            all_known_elders: Arc::new(Mutex::new(Default::default())),
-            section_prefix: Arc::new(Mutex::new(None)),
-            signer,
-            is_connecting_to_new_elders: false,
-        })
-    }
-
-    /// get the supermajority count based on number of known elders
-    pub async fn supermajority(&self) -> usize {
-        1 + self.known_elders_count().await * 2 / 3
-    }
-
-    pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
-        let elders = self.connected_elders.lock().await;
-        elders.values().cloned().collect()
-    }
-
-    /// Get the elders count of our section elders as provided by SectionInfo
-    pub async fn known_elders_count(&self) -> usize {
-        self.all_known_elders.lock().await.len()
-    }
-
-    pub fn client_public_key(&self) -> PublicKey {
-        self.signer.public_key()
-    }
-
-    pub fn endpoint(&self) -> Result<&Endpoint, Error> {
-        match self.endpoint.borrow() {
-            Some(endpoint) => Ok(endpoint),
-            None => {
-                trace!("self.endpoint.borrow() was None");
-                Err(Error::NotBootstrapped)
-            }
-        }
-    }
-
-    pub async fn section_key(&self) -> Result<PublicKey, Error> {
-        let keys = self.section_key_set.lock().await.clone();
-
-        match keys.borrow() {
-            Some(section_key_set) => Ok(PublicKey::Bls(section_key_set.public_key())),
-            None => {
-                trace!("self.section_key_set.borrow() was None");
-                Err(Error::NotBootstrapped)
-            }
-        }
-    }
-
-    /// Get section's prefix
-    pub async fn section_prefix(&self) -> Option<Prefix> {
-        *self.section_prefix.lock().await
-    }
-
-    pub async fn bootstrap_cmd(&self) -> Result<bytes::Bytes, Error> {
+    async fn bootstrap_cmd(&self) -> Result<bytes::Bytes, Error> {
         let socketaddr_sig = self
             .signer
             .sign(&serialize(&self.endpoint()?.socket_addr())?)
@@ -845,90 +537,5 @@ impl Session {
         }
         .serialize()
         .map_err(Error::MessagingProtocol)
-    }
-
-    /// Listen for incoming messages on a connection
-    pub async fn spawn_message_listener_thread(
-        &self,
-        mut incoming_messages: IncomingMessages,
-    ) -> Result<(), Error> {
-        debug!("Listening for incoming messages");
-
-        let mut session = self.clone();
-        // Spawn a thread if we have finished bootstrapping
-        let _ = tokio::spawn(async move {
-            loop {
-                match session
-                    .process_incoming_message(&mut incoming_messages)
-                    .await
-                {
-                    Ok(true) => (),
-                    Err(err) => {
-                        error!("Error while processing incoming message: {:?}. Listening for next message...", err);
-                    }
-                    Ok(false) => {
-                        info!("IncomingMessages listener has closed.");
-                        break;
-                    }
-                }
-            }
-            Ok::<(), Error>(())
-        });
-
-        // Some or None, not super important if this existed before...
-        Ok(())
-    }
-
-    async fn process_incoming_message(
-        &mut self,
-        incoming_messages: &mut IncomingMessages,
-    ) -> Result<bool, Error> {
-        if let Some((src, message)) = incoming_messages.next().await {
-            let message_type = WireMsg::deserialize(message)?;
-            trace!("Message received at listener from {:?}", &src);
-            match message_type {
-                MessageType::SectionInfo(msg) => {
-                    match self.handle_sectioninfo_msg(msg, src).await {
-                        Ok(()) => (),
-                        Err(error) => {
-                            error!("Error handling network info message: {:?}", error);
-                            // that's enough
-                            // go back to using a clone of session before the error
-                        }
-                    }
-                }
-                MessageType::ClientMessage(msg) => self.handle_client_msg(msg, src).await,
-                msg_type => {
-                    warn!("Unexpected message type received: {:?}", msg_type);
-                }
-            }
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct Signer {
-    keypair: Arc<Mutex<Keypair>>,
-    public_key: PublicKey,
-}
-
-impl Signer {
-    pub fn new(keypair: Keypair) -> Self {
-        let public_key = keypair.public_key();
-        Self {
-            keypair: Arc::new(Mutex::new(keypair)),
-            public_key,
-        }
-    }
-
-    pub fn public_key(&self) -> PublicKey {
-        self.public_key
-    }
-
-    pub async fn sign(&self, data: &[u8]) -> Result<Signature, Error> {
-        Ok(self.keypair.lock().await.sign(data))
     }
 }
