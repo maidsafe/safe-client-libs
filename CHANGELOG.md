@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.54.1](https://github.com/maidsafe/sn_client/compare/v0.54.0...v0.54.1) (2021-05-04)
+
+
+### Bug Fixes
+
+* **query-listener:** listen to query responses from any of the elders ([b157eee](https://github.com/maidsafe/sn_client/commit/b157eeee20e27db68ccbb0b5ee07c10fc7baf37d))
+
 ## [0.54.0](https://github.com/maidsafe/sn_client/compare/v0.53.4...v0.54.0) (2021-05-03)
 
 
