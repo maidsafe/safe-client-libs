@@ -229,8 +229,8 @@ impl Session {
         }
 
         info!(
-            "Sending query message {:?} w/ id: {:?}, to the {} Elders closest to data name: {:?}",
-            msg, msg_id, elders_len, elders
+            "Sending query message {:?}, to the {} Elders closest to data name: {:?}",
+            msg, elders_len, elders
         );
 
         // We send the same message to all Elders concurrently
@@ -269,11 +269,7 @@ impl Session {
                         );
                         result = Err(Error::SendingQuery);
                     } else {
-                        trace!(
-                            "Message with id {:?} sent to {}. Waiting for response...",
-                            &msg_id,
-                            &socket
-                        );
+                        trace!("Message with {:?} sent to {}", &msg_id, &socket);
                         result = Ok(());
                         break;
                     }
@@ -328,7 +324,7 @@ impl Session {
                     };
 
                     if *chunk_addr.name() == xorname {
-                        trace!("We received a valid Chunk so no more responses needed for query w/ id: {}", msg_id);
+                        trace!("Valid Chunk received for {}", msg_id);
                         break Some(QueryResponse::GetBlob(Ok(blob)));
                     } else {
                         // the Chunk content doesn't match its Xorname,
@@ -359,8 +355,8 @@ impl Session {
         };
 
         debug!(
-            "Response obtained after querying {} nodes: {:?}",
-            elders_len, response
+            "Response obtained for query w/id {:?}: {:?}",
+            &msg_id, &response
         );
 
         // Remove the response sender

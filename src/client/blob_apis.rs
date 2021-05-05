@@ -65,7 +65,12 @@ impl Client {
     where
         Self: Sized,
     {
-        trace!("Fetch Blob");
+        trace!(
+            "Fetch Blob: {:?} Position: {:?} Len: {:?}",
+            &address,
+            &position,
+            &len
+        );
 
         let data = self.fetch_blob_from_network(address).await?;
         let public = address.is_public();
@@ -554,8 +559,8 @@ mod tests {
         match &root_data_map {
             DataMap::Chunks(chunks) => {
                 for chunk in chunks {
-                    if blob_storage.get(&chunk.hash).await.is_ok() {
-                        bail!("this chunk should have been deleted")
+                    while blob_storage.get(&chunk.hash).await.is_ok() {
+                        sleep(Duration::from_millis(500)).await;
                     }
                 }
             }

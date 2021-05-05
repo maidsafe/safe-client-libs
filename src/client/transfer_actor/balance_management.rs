@@ -76,8 +76,8 @@ impl Client {
         &self,
         pk: Option<PublicKey>,
     ) -> Result<Token, Error> {
-        info!("Getting balance for {:?} or self", pk);
         let public_key = pk.unwrap_or(self.public_key().await);
+        info!("Getting balance for {:?} or self", public_key);
 
         let query = Query::Transfer(TransferQuery::GetBalance(public_key));
 

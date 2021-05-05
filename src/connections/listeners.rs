@@ -67,10 +67,10 @@ impl Session {
     ) -> Result<bool, Error> {
         if let Some((src, message)) = incoming_messages.next().await {
             let message_type = WireMsg::deserialize(message)?;
-            trace!("Message received at listener from {:?}", &src);
+            trace!("Incoming message from {:?}", &src);
             match message_type {
                 MessageType::SectionInfo(msg) => {
-                    if let Err(error) = self.handle_sectioninfo_msg(msg, src).await {
+                    if let Err(error) = self.handle_section_info_msg(msg, src).await {
                         error!("Error handling network info message: {:?}", error);
                     }
                 }
@@ -88,7 +88,7 @@ impl Session {
     // Private helpers
 
     // Handle received network info messages
-    async fn handle_sectioninfo_msg(
+    async fn handle_section_info_msg(
         &mut self,
         msg: SectionInfoMsg,
         src: SocketAddr,
@@ -226,15 +226,12 @@ impl Session {
                 // ConnectionManager::send_query
                 if let Some(sender) = self.pending_queries.lock().await.get(&correlation_id) {
                     trace!(
-                        "Sender channel found for query response with correlation id {}",
+                        "Sending response for query w/{} via channel.",
                         correlation_id
                     );
                     let _ = sender.send(Ok(response)).await;
                 } else {
-                    trace!(
-                        "No matching pending query found for message ID {:?}",
-                        correlation_id
-                    );
+                    trace!("No channel found for {:?}", correlation_id);
                 }
             }
             Message::Event {
@@ -246,10 +243,12 @@ impl Session {
                     if let Some(sender) =
                         self.pending_transfers.lock().await.get_mut(&correlation_id)
                     {
-                        info!("Accumulating SignatureShare");
                         let _ = sender.send(Ok(event)).await;
                     } else {
-                        warn!("No matching transfer validation event listener found for elder {:?} and message {:?}", src, correlation_id);
+                        warn!(
+                            "No transfer validation listener found for elder {:?} and message {:?}",
+                            src, correlation_id
+                        );
                         warn!("It may be that this transfer is complete and the listener cleaned up already.");
                         trace!("Event received was {:?}", event);
                     }

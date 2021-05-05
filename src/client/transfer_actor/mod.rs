@@ -60,6 +60,7 @@ impl Client {
         trace!("Getting balance for {:?}", self.public_key().await);
 
         // we're a standard client grabbing our own key's balance
+        self.get_history().await?;
         self.get_balance_from_network(None).await
     }
 
