@@ -64,7 +64,7 @@ jobs:
 
       - name: E2E Tests Against local network
         shell: bash
-        run: cargo test --release blob_apis
+        run: cargo test --release blob_apis -- --test-threads=1
 
       # TODO: Upload all logs as artifacts....
       - name: Node Logs
