@@ -112,7 +112,7 @@ jobs:
 
   # Run test suite.
   test:
-    name: Test
+    name: Doc Test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -137,44 +137,9 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
 
-      # TODO: Reenable as we get tests going again
-      # Run tests.
-      # - shell: bash
-      #   run: ./scripts/test-real-network
-
-      - name: Doc Tests
+      - name: Run Doc Tests
         shell: bash
         run: cargo test --release --doc
-
-  test-immutable-data:
-    name: Test Immutable Data Upload
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v2
-
-      # Install Rust
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
-      # Cache.
-      - name: Cargo cache registry, index and build
-        uses: actions/cache@v2.1.4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
-
-      # Test
-      - name: Immutable Data Tests
-        run: cargo test create_and_retrieve # id tests only
 
   # Test publish using --dry-run.
   test-publish:
