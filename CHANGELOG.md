@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.54.9](https://github.com/maidsafe/sn_client/compare/v0.54.8...v0.54.9) (2021-05-06)
+
+
+### Features
+
+* **storecost:** handle updated query response ([aa47973](https://github.com/maidsafe/sn_client/commit/aa47973c78f602100567d5946929fa36975ded17))
+
 ### [0.54.8](https://github.com/maidsafe/sn_client/compare/v0.54.7...v0.54.8) (2021-05-05)
 
 ### [0.54.7](https://github.com/maidsafe/sn_client/compare/v0.54.6...v0.54.7) (2021-05-05)
