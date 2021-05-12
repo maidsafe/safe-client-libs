@@ -59,7 +59,7 @@ impl Session {
             .collect::<BTreeSet<_>>();
         let connected_elders = self.connected_elders.clone();
         let _ = tokio::spawn(async move {
-            if let Some(disconnected_peer) = disconnections.next().await {
+            while let Some(disconnected_peer) = disconnections.next().await {
                 let _ = connected_elders.lock().await.remove(&disconnected_peer);
             }
         });

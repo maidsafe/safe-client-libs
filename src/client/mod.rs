@@ -126,10 +126,10 @@ impl Client {
         let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(keypair.clone(), elders)));
 
         let mut client = Self {
-            session,
             keypair,
             transfer_actor,
             simulated_farming_payout_dot,
+            session,
         };
 
         if cfg!(feature = "simulated-payouts") {
