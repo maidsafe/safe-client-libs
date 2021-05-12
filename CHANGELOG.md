@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.54.10](https://github.com/maidsafe/sn_client/compare/v0.54.9...v0.54.10) (2021-05-12)
+
+
+### Bug Fixes
+
+* **messaging:** remove all non-bootstrapped elders from local list of elders ([275c353](https://github.com/maidsafe/sn_client/commit/275c353b5fb3595aa7812c3f6ab2066577d63288))
+
 ### [0.54.9](https://github.com/maidsafe/sn_client/compare/v0.54.8...v0.54.9) (2021-05-06)
 
 
