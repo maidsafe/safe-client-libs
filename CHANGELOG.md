@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.54.11](https://github.com/maidsafe/sn_client/compare/v0.54.10...v0.54.11) (2021-05-13)
+
+
+### Features
+
+* **anti-entropy:** updates for sn_messaging new message enum ([5dfc53c](https://github.com/maidsafe/sn_client/commit/5dfc53cd4618affa63271bab88f59c954b8fcde1))
+
+
+### Bug Fixes
+
+* rebase atop T5 ([e97ca23](https://github.com/maidsafe/sn_client/commit/e97ca238072fdf69408cdc4181c966f68f863fbe))
+
 ### [0.54.10](https://github.com/maidsafe/sn_client/compare/v0.54.9...v0.54.10) (2021-05-12)
 
 
