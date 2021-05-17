@@ -430,7 +430,7 @@ impl Session {
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
-        let supermajority = self.supermajority().await;
+        let supermajority = self.super_majority().await;
 
         if self.known_elders_count().await == 0 {
             // this is not necessarily an error in case we didn't get elder info back yet

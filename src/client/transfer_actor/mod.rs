@@ -252,7 +252,7 @@ impl Client {
 
         let mut returned_errors = vec![];
         let mut response_count: usize = 0;
-        let supermajority = self.session.supermajority().await;
+        let supermajority = self.session.super_majority().await;
 
         loop {
             match receiver.recv().await {

@@ -274,14 +274,11 @@ impl Session {
                 correlation_id,
                 ..
             } => {
-                if let Some(sender) = self.pending_transfers.lock().await.get_mut(&correlation_id) {
-                    debug!("Cmd Error was received, sending on channel to caller");
-                    let _ = sender
-                        .send(Err(Error::from((error.clone(), correlation_id))))
-                        .await;
-                } else {
-                    warn!("No sender subscribing and listening for errors relating to message {}. Error returned is: {:?}", correlation_id, error)
-                }
+                debug!(
+                    "Cmd Error was received for Message w/ID: {:?}, sending on error channel",
+                    correlation_id
+                );
+                let _ = self.incoming_err_sender.send(error).await;
             }
             msg => {
                 warn!("Ignoring unexpected message type received: {:?}", msg);

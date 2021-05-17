@@ -27,6 +27,7 @@ use log::{debug, info, trace, warn};
 use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
+use sn_messaging::client::CmdError;
 use sn_messaging::{
     client::{Cmd, DataCmd, ProcessMsg, Query},
     MessageId,
@@ -36,6 +37,7 @@ use std::{
     str::FromStr,
     {collections::HashSet, net::SocketAddr, sync::Arc},
 };
+use tokio::sync::mpsc::{Receiver, Sender};
 
 /// Client object
 #[derive(Clone)]
@@ -43,6 +45,7 @@ pub struct Client {
     keypair: Keypair,
     transfer_actor: Arc<Mutex<SafeTransferActor<Keypair>>>,
     simulated_farming_payout_dot: Dot<PublicKey>,
+    incoming_errors: Arc<Mutex<Receiver<CmdError>>>,
     session: Session,
 }
 
@@ -98,8 +101,11 @@ impl Client {
         // We use feature `no-igd` so this will use the echo service only
         qp2p_config.forward_port = true;
 
+        // Incoming error notifiers
+        let (err_sender, err_receiver) = tokio::sync::mpsc::channel::<CmdError>(10);
+
         // Create the connection manager
-        let session = attempt_bootstrap(qp2p_config, keypair.clone()).await?;
+        let session = attempt_bootstrap(qp2p_config, keypair.clone(), err_sender).await?;
 
         // random PK used for from payment
         let random_payment_id = Keypair::new_ed25519(&mut rng);
@@ -130,6 +136,7 @@ impl Client {
             transfer_actor,
             simulated_farming_payout_dot,
             session,
+            incoming_errors: Arc::new(Mutex::new(err_receiver)),
         };
 
         if cfg!(feature = "simulated-payouts") {
@@ -222,16 +229,25 @@ impl Client {
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
+
+    #[cfg(test)]
+    pub async fn expect_cmd_error(&mut self) -> Option<CmdError> {
+        self.incoming_errors.lock().await.recv().await
+    }
 }
 
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
-async fn attempt_bootstrap(qp2p_config: QuicP2pConfig, keypair: Keypair) -> Result<Session, Error> {
+async fn attempt_bootstrap(
+    qp2p_config: QuicP2pConfig,
+    keypair: Keypair,
+    err_sender: Sender<CmdError>,
+) -> Result<Session, Error> {
     let mut attempts: u32 = 0;
 
     let signer = Signer::new(keypair);
 
-    let mut session = Session::new(qp2p_config, signer)?;
+    let mut session = Session::new(qp2p_config, signer, err_sender)?;
     loop {
         let res = session.bootstrap().await;
         match res {

@@ -860,15 +860,15 @@ mod tests {
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
-        let client = create_test_client().await?;
+        let mut client = create_test_client().await?;
 
-        match client.delete_map(mapref).await {
-            Err(Error::ErrorMessage {
-                source: ErrorMessage::AccessDenied(_),
-                ..
-            }) => Ok(()),
-            Err(error) => bail!("Expecting AccessDenied error got: {:?}", error),
-            other => bail!("Expecting AccessDenited Error, got: {:?}", other),
+        client.delete_map(mapref).await?;
+
+        match client.expect_cmd_error().await {
+            Some(sn_messaging::client::CmdError::Data(
+                sn_messaging::client::Error::AccessDenied(_),
+            )) => Ok(()),
+            _ => bail!("Unexpected: Deletion by non-owners should fail"),
         }
     }
 

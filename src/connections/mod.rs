@@ -17,6 +17,7 @@ use futures::lock::Mutex;
 use log::{debug, trace};
 use qp2p::{Config as QuicP2pConfig, Endpoint, QuicP2p};
 use sn_data_types::{PublicKey, TransferValidated};
+use sn_messaging::client::CmdError;
 use sn_messaging::{client::QueryResponse, MessageId};
 use std::{
     borrow::Borrow,
@@ -45,6 +46,7 @@ pub struct Session {
     qp2p: QuicP2p,
     pending_queries: PendingQueryResponses,
     pending_transfers: PendingTransferValidations,
+    incoming_err_sender: Sender<CmdError>,
     endpoint: Option<Endpoint>,
     /// elders we've managed to connect to
     connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
@@ -57,7 +59,11 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(qp2p_config: QuicP2pConfig, signer: Signer) -> Result<Self, Error> {
+    pub fn new(
+        qp2p_config: QuicP2pConfig,
+        signer: Signer,
+        err_sender: Sender<CmdError>,
+    ) -> Result<Self, Error> {
         debug!("QP2p config: {:?}", qp2p_config);
 
         let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), true)?;
@@ -65,6 +71,7 @@ impl Session {
             qp2p,
             pending_queries: Arc::new(Mutex::new(HashMap::default())),
             pending_transfers: Arc::new(Mutex::new(HashMap::default())),
+            incoming_err_sender: err_sender,
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),
             connected_elders: Arc::new(Mutex::new(Default::default())),
@@ -75,8 +82,8 @@ impl Session {
         })
     }
 
-    /// get the supermajority count based on number of known elders
-    pub async fn supermajority(&self) -> usize {
+    /// Get the SuperMajority count based on number of known elders
+    pub async fn super_majority(&self) -> usize {
         1 + self.known_elders_count().await * 2 / 3
     }
 
