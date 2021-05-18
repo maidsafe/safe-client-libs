@@ -486,7 +486,7 @@ mod tests {
         // Make sure Blob was deleted
         let mut attempts = 3u8;
         while client.read_blob(priv_address, None, None).await.is_ok() {
-            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(4000)).await;
             if attempts == 0 {
                 bail!("The private Blob was not deleted: {:?}", priv_address);
             } else {
