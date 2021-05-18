@@ -35,13 +35,17 @@ pub async fn create_test_client() -> Result<Client> {
 }
 
 /// Create a test client optionally providing keypair and/or bootstrap_config
+/// If no keypair is provided, a check is run that a balance has been generated for the client
 pub async fn create_test_client_with(optional_keypair: Option<Keypair>) -> Result<Client> {
     init_logger();
     let contact_info = read_network_conn_info()?;
-    let client = Client::new(optional_keypair, None, Some(contact_info)).await?;
+    let client = Client::new(optional_keypair.clone(), None, Some(contact_info)).await?;
 
-    let _ = retry_loop_for_pattern!(client.get_balance(),
-        Ok(balance) if *balance != Token::from_str("0")?)?;
+    if let None = optional_keypair {
+        // check we have some balance
+        let _ = retry_loop_for_pattern!(client.get_balance(),
+            Ok(balance) if *balance != Token::from_str("0")?)?;
+    }
 
     Ok(client)
 }
