@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.54.12](https://github.com/maidsafe/sn_client/compare/v0.54.11...v0.54.12) (2021-05-18)
+
+
+### Features
+
+* **errors:** receive CmdErrors from the network ([ee194d5](https://github.com/maidsafe/sn_client/commit/ee194d58f9243e764e581d3f29c067e0bb4722c0))
+
 ### [0.54.11](https://github.com/maidsafe/sn_client/compare/v0.54.10...v0.54.11) (2021-05-13)
 
 
