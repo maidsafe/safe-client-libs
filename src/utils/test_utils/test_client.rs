@@ -41,7 +41,7 @@ pub async fn create_test_client_with(optional_keypair: Option<Keypair>) -> Resul
     let contact_info = read_network_conn_info()?;
     let client = Client::new(optional_keypair.clone(), None, Some(contact_info)).await?;
 
-    if let None = optional_keypair {
+    if optional_keypair.is_none() {
         // check we have some balance
         let _ = retry_loop_for_pattern!(client.get_balance(),
             Ok(balance) if *balance != Token::from_str("0")?)?;
