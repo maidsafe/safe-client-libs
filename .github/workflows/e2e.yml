@@ -63,17 +63,13 @@ jobs:
       
       - run: ~/.safe/cli/safe node run-baby-fleming 
 
+      - name: Client tests against local network
+        shell: bash
+        run: timeout 5m cargo test --release -- client_ && sleep 5
+    
       - name: Transfer tests against local network
         shell: bash
-        run: cargo test --release -- transfer
-
-      - name: Sequence tests against local network
-        shell: bash
-        run: cargo test --release -- sequence
-    
-      - name: Map tests against local network
-        shell: bash
-        run: cargo test --release -- map
+        run: timeout 5m  cargo test --release -- transfer && sleep 5
 
 
       # TODO: Upload all logs as artifacts....
