@@ -282,8 +282,7 @@ mod tests {
         // Assert locally
         assert_eq!(client.get_local_balance().await, Token::from_str("9")?);
 
-        // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Token::from_str("9")?);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("9")?);
 
         let _ = client
             .send_tokens(keypair2.public_key(), Token::from_str("1")?)
@@ -293,7 +292,7 @@ mod tests {
         assert_eq!(client.get_local_balance().await, Token::from_str("8")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Token::from_str("8")?);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("8")?);
 
         let _ = client
             .send_tokens(keypair2.public_key(), Token::from_str("1")?)
@@ -303,7 +302,7 @@ mod tests {
         assert_eq!(client.get_local_balance().await, Token::from_str("7")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Token::from_str("7")?);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("7")?);
 
         let _ = client
             .send_tokens(keypair2.public_key(), Token::from_str("1")?)
@@ -313,7 +312,7 @@ mod tests {
         assert_eq!(client.get_local_balance().await, Token::from_str("6")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Token::from_str("6")?);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("6")?);
 
         Ok(())
     }
