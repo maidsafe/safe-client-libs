@@ -26,9 +26,17 @@ jobs:
         shell: bash
         run: echo ${{ env.RELEASE_VERSION }}
 
+      - name: Set Msgs Version
+        shell: bash
+        run: SN_MESSAGING_VERSION=$(cat Cargo.toml| grep "sn_messaging =" | awk '{print $3}' | sed -e 's/^"//' -e 's/"$//')
       - name: Generate Changelog
         shell: bash
         run: awk '/# \[/{c++;p=1}{if(c==2){exit}}p;' CHANGELOG.md > RELEASE-CHANGELOG.txt
+      - name: Note Msgs Version
+        run: | 
+            echo "## Compatability" >> RELEASE-CHANGELOG.txt
+            echo "This version of sn_client is compatabile with sn_messaging\:\ $SN_MESSAGING_VERSION" >> RELEASE-CHANGELOG.txt
+            
       - run: cat RELEASE-CHANGELOG.txt
       - name: Release generation
         uses: softprops/action-gh-release@91409e712cf565ce9eff10c87a8d1b11b81757ae
