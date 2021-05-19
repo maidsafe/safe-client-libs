@@ -339,7 +339,7 @@ mod tests {
         // Unchanged balances - local and network.
         assert_eq!(client.get_local_balance().await, Token::from_str("10")?);
 
-        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
         Ok(())
     }
@@ -421,10 +421,10 @@ mod tests {
         };
 
         // Assert if sender's token is unchanged.
-        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
         // Assert no token is credited to receiver's bal accidentally by logic error.
-        retry_loop_for_pattern!( receiving_client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
+        let _ = retry_loop_for_pattern!( receiving_client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
         Ok(())
     }
@@ -437,12 +437,12 @@ mod tests {
         let wallet1 = receiving_client.public_key().await;
 
         let _ = client.send_tokens(wallet1, Token::from_str("10")?).await?;
+
         // Assert sender is debited.
-        let mut new_balance = client.get_balance().await?;
         let desired_balance = Token::from_nano(0);
 
         // loop until correct
-        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == desired_balance);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == desired_balance);
 
         let data = generate_random_vector::<u8>(10);
         let res = client.store_public_blob(&data).await;

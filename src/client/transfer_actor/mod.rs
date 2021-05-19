@@ -378,7 +378,7 @@ mod tests {
         let client = client_res?;
 
         // Check fresh client has expected balance
-        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("100")?);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("100")?);
 
         assert_eq!(client.get_local_balance().await, Token::from_str("100")?);
 
