@@ -9,14 +9,18 @@
 use anyhow::{Context, Result};
 use sn_client::{utils::test_utils::read_network_conn_info, Client};
 use sn_url::{SafeContentType, SafeUrl, DEFAULT_XORURL_BASE};
-use std::io::{stdout, Write};
+use std::{
+    io::{stdout, Write},
+    time::Duration,
+};
+use tokio::time::sleep;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
 
-    println!("Creating a Client...");
     let bootstrap_contacts = read_network_conn_info()?;
+    println!("Creating a Client to connect to {:?}", bootstrap_contacts);
 
     let client = Client::new(None, None, Some(bootstrap_contacts)).await?;
 
@@ -31,11 +35,15 @@ async fn main() -> Result<()> {
     let xorurl = SafeUrl::encode_blob(*address.name(), SafeContentType::Raw, DEFAULT_XORURL_BASE)?;
     println!("Blob stored at xorurl: {}", xorurl);
 
+    sleep(Duration::from_millis(4000)).await;
+
     let data = client.read_blob(address, None, None).await?;
     println!("Blob read from {:?}:", address);
     stdout()
         .write_all(&data)
-        .context("Failed to print out the content of the Blob")?;
+        .context("Failed to print out the content of the file")?;
+
+    println!();
 
     Ok(())
 }
