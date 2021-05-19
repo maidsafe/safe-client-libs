@@ -10,7 +10,8 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  clippy:
+  checks:
+    if: "!startsWith(github.event.pull_request.title, 'Automated version bump')"
     name: Rustfmt-Clippy
     runs-on: ubuntu-latest
     steps:
@@ -43,18 +44,20 @@ jobs:
         run: cargo clippy --all-targets
 
   check_pr_size:
-      name: Check PR size doesn't break set limit
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v2
-          with:
-            fetch-depth: '0'
-        - uses: maidsafe/pr_size_checker@v2
-          with:
-            max_lines_changed: 200
+    if: "!startsWith(github.event.pull_request.title, 'Automated version bump')" 
+    name: Check PR size doesn't break set limit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+      - uses: maidsafe/pr_size_checker@v2
+        with:
+          max_lines_changed: 200
 
   # Run `cargo build` in the root directory to test all build scripts.
   build-script:
+    if: "!startsWith(github.event.pull_request.title, 'Automated version bump')"
     name: Build Scripts
     runs-on: ubuntu-latest
     steps:
@@ -82,6 +85,7 @@ jobs:
         run: cargo build
 
   cargo-udeps:
+    if: "!startsWith(github.event.pull_request.title, 'Automated version bump')"
     name: Unused dependency check
     runs-on: ubuntu-latest
     steps:
@@ -100,6 +104,7 @@ jobs:
           cargo +nightly udeps --all-targets
 
   cargo-deny:
+    if: "!startsWith(github.event.pull_request.title, 'Automated version bump')"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -112,6 +117,7 @@ jobs:
 
   # Run test suite.
   test:
+    if: "!startsWith(github.event.pull_request.title, 'Automated version bump')"
     name: Doc Test
     runs-on: ${{ matrix.os }}
     strategy:
@@ -143,6 +149,7 @@ jobs:
 
   # Test publish using --dry-run.
   test-publish:
+    if: "!startsWith(github.event.pull_request.title, 'Automated version bump')"
     name: Test Publish
     runs-on: ubuntu-latest
     steps:
