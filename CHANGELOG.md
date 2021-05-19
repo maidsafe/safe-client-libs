@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.55.0](https://github.com/maidsafe/sn_client/compare/v0.54.13...v0.55.0) (2021-05-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cicd:** This should be bumped with messaging changes
+
+This isn't _actually_ a breaking change, but a bump due to an earlier
+commit missing one.
+
+PRs starting with the title `Automated version bump` are auto generated as
+part of the CI/CD process and so it is duplicate work running the PR workflow
+on them. These changes skip PR CI for them.
+This PR also switches the scheduled security audit to only run on the MaidSafe
+org repo, not on forks.
+
+### Features
+
+* **cicd:** exclude prs with title 'Automated version bump` ([1e28cf4](https://github.com/maidsafe/sn_client/commit/1e28cf40cbadc394d5ad73f21e91a45add039a60))
+
 ### [0.54.13](https://github.com/maidsafe/sn_client/compare/v0.54.12...v0.54.13) (2021-05-19)
 
 ### [0.54.12](https://github.com/maidsafe/sn_client/compare/v0.54.11...v0.54.12) (2021-05-18)
