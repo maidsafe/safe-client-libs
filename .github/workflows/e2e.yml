@@ -48,13 +48,12 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
       
-      # If we need a custom CLI version (testing out new APIs/messages etc, 
-      # we'll need to supply a modified script here I suppose)
+      # in order to run testnet
       - name: Place Safe CLI
         run:  curl -so- https://sn-api.s3.amazonaws.com/install.sh | bash
-     
-      - run: ~/.safe/cli/safe -V
-      - run: ~/.safe/cli/safe node install
+
+      - name: Get latest node version
+        run: ~/.safe/cli/safe node install
 
       - name: Check Node Versions
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
