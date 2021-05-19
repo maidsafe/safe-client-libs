@@ -64,9 +64,17 @@ jobs:
       
       - run: ~/.safe/cli/safe node run-baby-fleming 
 
-      - name: E2E Tests Against local network
+      - name: Transfer tests against local network
         shell: bash
-        run: cargo test --release -- --skip large --skip 10mb
+        run: cargo test --release -- transfer
+
+      - name: Sequence tests against local network
+        shell: bash
+        run: cargo test --release -- sequence
+    
+      - name: Map tests against local network
+        shell: bash
+        run: cargo test --release -- map
 
 
       # TODO: Upload all logs as artifacts....
