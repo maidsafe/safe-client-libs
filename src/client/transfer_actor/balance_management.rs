@@ -211,7 +211,6 @@ mod tests {
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Token};
     use std::str::FromStr;
-    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     pub async fn transfer_actor_can_send_tokens_and_thats_reflected_locally() -> Result<()> {
@@ -363,7 +362,7 @@ mod tests {
         let mut balance = client.get_balance().await?;
 
         while balance != Token::from_str("110")? {
-            sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
             balance = client.get_balance().await?;
         }
@@ -379,7 +378,7 @@ mod tests {
 
         // loop until correct
         while new_balance != desired_balance {
-            sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             new_balance = client.get_balance().await?;
         }
 
@@ -391,7 +390,7 @@ mod tests {
         // loop until correct
         while receiving_bal != target_tokens {
             let _ = receiving_client.get_history().await?;
-            sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             receiving_bal = receiving_client.get_balance().await?;
 
             if receiving_bal > target_tokens {
@@ -443,10 +442,7 @@ mod tests {
         let desired_balance = Token::from_nano(0);
 
         // loop until correct
-        while new_balance != desired_balance {
-            sleep(Duration::from_millis(200)).await;
-            new_balance = client.get_balance().await?;
-        }
+        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == desired_balance);
 
         let data = generate_random_vector::<u8>(10);
         let res = client.store_public_blob(&data).await;

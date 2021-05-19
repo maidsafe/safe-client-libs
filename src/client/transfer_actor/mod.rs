@@ -325,7 +325,6 @@ mod tests {
     use rand::rngs::OsRng;
     use sn_data_types::Token;
     use std::str::FromStr;
-    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
@@ -347,14 +346,14 @@ mod tests {
 
         let mut bal = actor.get_balance().await;
         while bal.is_err() {
-            sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
             bal = actor.get_balance().await;
         }
 
         let mut tokens = bal?;
         while tokens != Token::from_str("10")? {
-            sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
             tokens = actor.get_balance().await?;
         }
