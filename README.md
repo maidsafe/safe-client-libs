@@ -3,6 +3,10 @@
 | [![](http://meritbadge.herokuapp.com/sn_client)](https://crates.io/crates/sn_client) | [![Documentation](https://docs.rs/sn_client/badge.svg)](https://docs.rs/sn_client) |
 |:----------:|:----------:|
 
+## Compatability
+
+`sn_node`: 0.42.X
+
 ## Overview
 
 `sn_client` can interface conditionally against either the sn_routing crate or a mock used for local testing.
