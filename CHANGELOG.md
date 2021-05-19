@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.55.1](https://github.com/maidsafe/sn_client/compare/v0.55.0...v0.55.1) (2021-05-19)
+
+
+### Features
+
+* **examples:** add a simple example using Blob API ([5c5e764](https://github.com/maidsafe/sn_client/commit/5c5e764e5052d00301e269d1ff9a27499f23feeb))
+
 ## [0.55.0](https://github.com/maidsafe/sn_client/compare/v0.54.13...v0.55.0) (2021-05-19)
 
 
