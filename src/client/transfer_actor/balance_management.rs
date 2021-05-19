@@ -203,6 +203,7 @@ impl Client {
 mod tests {
     use super::*;
     use crate::errors::TransfersError;
+    use crate::retry_loop_for_pattern;
     use crate::utils::{
         generate_random_vector, test_utils::calculate_new_balance, test_utils::create_test_client,
     };
@@ -339,7 +340,7 @@ mod tests {
         // Unchanged balances - local and network.
         assert_eq!(client.get_local_balance().await, Token::from_str("10")?);
 
-        assert_eq!(client.get_balance().await?, Token::from_str("10")?);
+        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
         Ok(())
     }
@@ -421,12 +422,10 @@ mod tests {
         };
 
         // Assert if sender's token is unchanged.
-        let balance = client.get_balance().await?;
-        assert_eq!(balance, Token::from_str("10")?);
+        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
         // Assert no token is credited to receiver's bal accidentally by logic error.
-        let receiving_bal = receiving_client.get_balance().await?;
-        assert_eq!(receiving_bal, Token::from_str("10")?);
+        retry_loop_for_pattern!( receiving_client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
         Ok(())
     }

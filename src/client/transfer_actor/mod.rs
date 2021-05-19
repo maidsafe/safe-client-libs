@@ -319,6 +319,7 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use crate::retry_loop_for_pattern;
     use crate::utils::test_utils::{create_test_client, create_test_client_with};
     use anyhow::{anyhow, Result};
     use rand::rngs::OsRng;
@@ -364,8 +365,6 @@ mod tests {
     #[tokio::test]
     pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<()> {
         // small delay for starting this test, which seems to have a problem when nodes are under stress..
-        // sleep(Duration::from_millis(200)).await;
-
         let keypair = sn_data_types::Keypair::new_ed25519(&mut OsRng);
 
         {
@@ -377,23 +376,10 @@ mod tests {
 
         let client_res = create_test_client_with(Some(keypair.clone())).await;
 
-        // while client_res.is_err() {
-        //     sleep(Duration::from_millis(200)).await;
-
-        //     client_res = create_test_client_with(Some(keypair.clone())).await;
-        // }
-
         let client = client_res?;
 
-        // Assert sender is debited.
-        let mut _new_balance = client.get_balance().await?;
-        let _desired_balance = Token::from_str("100")?;
-
-        // loop until correct
-        // while new_balance != desired_balance {
-        //     sleep(Duration::from_millis(200)).await;
-        //     new_balance = client.get_balance().await?;
-        // }
+        // Check fresh client has expected balance
+        retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("100")?);
 
         assert_eq!(client.get_local_balance().await, Token::from_str("100")?);
 
