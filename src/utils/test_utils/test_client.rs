@@ -42,9 +42,9 @@ pub async fn create_test_client_with(optional_keypair: Option<Keypair>) -> Resul
     let client = Client::new(optional_keypair.clone(), None, Some(contact_info)).await?;
 
     if optional_keypair.is_none() {
-        // check we have some balance
+        // check we have some balance, 10 test coins
         let _ = retry_loop_for_pattern!(client.get_balance(),
-            Ok(balance) if *balance != Token::from_str("0")?)?;
+            Ok(balance) if *balance == Token::from_str("10")?)?;
     }
 
     Ok(client)
