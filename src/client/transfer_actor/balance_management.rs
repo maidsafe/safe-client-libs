@@ -274,6 +274,8 @@ mod tests {
 
         let client = create_test_client().await?;
 
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
+
         let _ = client
             .send_tokens(keypair2.public_key(), Token::from_str("1")?)
             .await?;
