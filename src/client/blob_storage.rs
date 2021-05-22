@@ -89,7 +89,7 @@ impl Storage for BlobStorage {
         let blob: Blob = if self.public {
             PublicBlob::new(data).into()
         } else {
-            PrivateBlob::new(data, self.client.public_key().await).into()
+            PrivateBlob::new(data, self.client.public_key()).into()
         };
         trace!("Self encrypt invoked PutBlob({:?})", &blob);
         self.client
@@ -102,7 +102,7 @@ impl Storage for BlobStorage {
         let blob: Blob = if self.public {
             PublicBlob::new(data.to_vec()).into()
         } else {
-            PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
+            PrivateBlob::new(data.to_vec(), self.client.public_key()).into()
         };
         Ok(blob.name().0.to_vec())
     }

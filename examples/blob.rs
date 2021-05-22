@@ -19,12 +19,14 @@ use tokio::time::sleep;
 async fn main() -> Result<()> {
     env_logger::init();
 
+    println!("Reading network bootstrap information...");
     let bootstrap_contacts = read_network_conn_info()?;
+
     println!("Creating a Client to connect to {:?}", bootstrap_contacts);
 
     let client = Client::new(None, None, Some(bootstrap_contacts)).await?;
 
-    let pk = client.public_key().await;
+    let pk = client.public_key();
     println!("Client Public Key: {}", pk);
 
     let random_num: u64 = rand::random();
@@ -37,6 +39,7 @@ async fn main() -> Result<()> {
 
     sleep(Duration::from_millis(4000)).await;
 
+    println!("Fetching Blob from the network now...");
     let data = client.read_blob(address, None, None).await?;
     println!("Blob read from {:?}:", address);
     stdout()

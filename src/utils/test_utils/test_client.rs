@@ -20,8 +20,8 @@ static INIT: Once = Once::new();
 pub fn init_logger() {
     INIT.call_once(|| {
         fmt()
-            // NOTE: comment out this line for more compact (but less readable) log output.
-            .pretty()
+            // NOTE: uncomment this line for pretty printed log output.
+            //.pretty()
             .with_thread_names(true)
             .with_env_filter(EnvFilter::from_default_env())
             .with_target(false)

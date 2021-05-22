@@ -20,7 +20,7 @@ use sn_data_types::{
     DebitId, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
 };
 use sn_messaging::client::{
-    Cmd, DataCmd, ProcessMsg, Query, QueryResponse, TransferCmd, TransferQuery,
+    ClientSigned, Cmd, DataCmd, Query, QueryResponse, TransferCmd, TransferQuery,
 };
 use sn_transfers::{ActorEvent, TransferInitiated};
 use tokio::sync::mpsc::channel;
@@ -57,7 +57,7 @@ impl Client {
     where
         Self: Sized,
     {
-        trace!("Getting balance for {:?}", self.public_key().await);
+        trace!("Getting balance for {:?}", self.public_key());
 
         // we're a standard client grabbing our own key's balance
         self.get_history().await?;
@@ -121,7 +121,7 @@ impl Client {
     /// # Ok(()) } ); }
     /// ```
     pub async fn get_history(&self) -> Result<(), Error> {
-        let public_key = self.public_key().await;
+        let public_key = self.public_key();
         info!("Getting SnTransfers history for pk: {:?}", public_key);
 
         let query = Query::Transfer(TransferQuery::GetHistory {
@@ -130,7 +130,7 @@ impl Client {
         });
 
         // This is a normal response manager request. We want quorum on this for now...
-        let query_result = self.session.send_query(query).await?;
+        let query_result = self.send_query(query).await?;
         let msg_id = query_result.msg_id;
 
         let history = match query_result.response {
@@ -164,7 +164,7 @@ impl Client {
     pub async fn get_store_cost(&self, bytes: u64) -> Result<(u64, Token, PublicKey), Error> {
         info!("Sending Query for latest StoreCost");
 
-        let public_key = self.public_key().await;
+        let public_key = self.public_key();
 
         let query = Query::Transfer(TransferQuery::GetStoreCost {
             requester: public_key,
@@ -172,8 +172,7 @@ impl Client {
         });
 
         // This is a normal response manager request. We want quorum on this for now...
-
-        let query_result = self.session.send_query(query).await?;
+        let query_result = self.send_query(query).await?;
         let msg_id = query_result.msg_id;
 
         match query_result.response {
@@ -206,16 +205,15 @@ impl Client {
             .await
             .transfer(cost_of_put, section_key, "".to_string())?
             .ok_or(Error::NoTransferEventsForLocalActor)?;
+
         let signed_transfer = SignedTransfer {
             debit: initiated.signed_debit,
             credit: initiated.signed_credit,
         };
 
-        let command = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
+        let cmd = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
 
         debug!("Transfer to be sent: {:?}", &signed_transfer);
-
-        let transfer_message = self.create_cmd_message(command).await?;
 
         self.transfer_actor
             .lock()
@@ -225,9 +223,8 @@ impl Client {
                 signed_credit: signed_transfer.credit.clone(),
             }))?;
 
-        let payment_proof: TransferAgreementProof = self
-            .await_validation(transfer_message, signed_transfer.id())
-            .await?;
+        let payment_proof: TransferAgreementProof =
+            self.await_validation(cmd, signed_transfer.id()).await?;
 
         debug!("Payment proof retrieved");
         Ok(payment_proof)
@@ -236,19 +233,24 @@ impl Client {
     /// Send message and await validation and constructing of TransferAgreementProof
     async fn await_validation(
         &self,
-        msg: ProcessMsg,
+        cmd: Cmd,
         _id: DebitId,
     ) -> Result<TransferAgreementProof, Error> {
         info!("Awaiting transfer validation");
 
         let (sender, mut receiver) = channel::<Result<TransferValidated, Error>>(7);
 
-        // let endpoint = self.session.endpoint()?.clone();
-        // let elders = self.session.elders.iter().cloned().collect();
-        // let pending_transfers = self.session.pending_transfers.clone();
+        let client_pk = self.public_key();
+        let signature = self.keypair.sign(b"TODO");
+        let client_signed = ClientSigned {
+            public_key: client_pk,
+            signature,
+        };
 
-        let msg_id = msg.id();
-        let _ = self.session.send_transfer_validation(msg, sender).await?;
+        let msg_id = self
+            .session
+            .send_transfer_validation(cmd, client_signed, sender)
+            .await?;
 
         let mut returned_errors = vec![];
         let mut response_count: usize = 0;
@@ -268,7 +270,7 @@ impl Client {
                                     actor.apply(ActorEvent::TransferValidationReceived(
                                         validation.clone(),
                                     ))?;
-                                    info!("Transfer successfully validated.");
+                                    debug!("Transfer successfully validated.");
                                     if let Some(tap) = validation.proof {
                                         debug!("Transfer has proof.");
                                         self.session
@@ -307,7 +309,7 @@ impl Client {
             // at any point if we've had enough responses in, let's clean up
             if response_count >= supermajority {
                 // remove pending listener
-                let _ = self.session.remove_pending_transfer_sender(&msg_id).await?;
+                self.session.remove_pending_transfer_sender(&msg_id).await?;
             }
         }
     }

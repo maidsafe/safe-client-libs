@@ -8,7 +8,9 @@
 
 mod blob_apis;
 mod blob_storage;
+mod commands;
 mod map_apis;
+mod queries;
 mod register_apis;
 mod sequence_apis;
 mod transfer_actor;
@@ -16,28 +18,22 @@ mod transfer_actor;
 // sn_transfers wrapper
 pub use self::transfer_actor::SafeTransferActor;
 
-use crate::{
-    config_handler::Config,
-    connections::{QueryResult, Session, Signer},
-    errors::Error,
-};
+use crate::{config_handler::Config, connections::Session, errors::Error};
 use crdts::Dot;
 use futures::lock::Mutex;
 use log::{debug, info, trace, warn};
-use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
-use sn_messaging::client::CmdError;
-use sn_messaging::{
-    client::{Cmd, DataCmd, ProcessMsg, Query},
-    MessageId,
-};
+use sn_messaging::client::{Cmd, CmdError, DataCmd};
 use std::{
     path::Path,
     str::FromStr,
     {collections::HashSet, net::SocketAddr, sync::Arc},
 };
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Receiver;
+
+// Number of attempts to make when trying to bootstrap to the network
+const NUM_OF_BOOTSTRAPPING_ATTEMPTS: u8 = 1;
 
 /// Client object
 #[derive(Clone)]
@@ -104,8 +100,14 @@ impl Client {
         // Incoming error notifiers
         let (err_sender, err_receiver) = tokio::sync::mpsc::channel::<CmdError>(10);
 
-        // Create the connection manager
-        let session = attempt_bootstrap(qp2p_config, keypair.clone(), err_sender).await?;
+        // Create the session with the network
+        let mut session = Session::new(qp2p_config, err_sender)?;
+        let client_pk = keypair.public_key();
+
+        // Bootstrap to the network, connecting to the section responsible
+        // for our client public key
+        debug!("Bootstrapping to the network...");
+        attempt_bootstrap(&mut session, client_pk).await?;
 
         // random PK used for from payment
         let random_payment_id = Keypair::new_ed25519(&mut rng);
@@ -168,11 +170,11 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// # let bootstrap_contacts = Some(read_network_conn_info()?);
     /// let client = Client::new(None, None, bootstrap_contacts).await?;
-    /// let _keypair = client.keypair().await;
+    /// let _keypair = client.keypair();
     ///
     /// # Ok(()) } ); }
     /// ```
-    pub async fn keypair(&self) -> Keypair {
+    pub fn keypair(&self) -> Keypair {
         self.keypair.clone()
     }
 
@@ -187,29 +189,11 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// # let bootstrap_contacts = Some(read_network_conn_info()?);
     /// let client = Client::new(None, None, bootstrap_contacts).await?;
-    /// let _pk = client.public_key().await;
+    /// let _pk = client.public_key();
     /// # Ok(()) } ); }
     /// ```
-    pub async fn public_key(&self) -> PublicKey {
-        let id = self.keypair().await;
-        id.public_key()
-    }
-
-    /// Send a Query to the network and await a response
-    async fn send_query(&self, query: Query) -> Result<QueryResult, Error> {
-        debug!("Sending QueryRequest: {:?}", query);
-        self.session.send_query(query).await
-    }
-
-    // Build and sign Cmd Message Envelope
-    pub(crate) async fn create_cmd_message(&self, msg_contents: Cmd) -> Result<ProcessMsg, Error> {
-        let id = MessageId::new();
-        trace!("Creating cmd message with id: {:?}", id);
-
-        Ok(ProcessMsg::Cmd {
-            cmd: msg_contents,
-            id,
-        })
+    pub fn public_key(&self) -> PublicKey {
+        self.keypair().public_key()
     }
 
     // Private helper to obtain payment proof for a data command, send it to the network,
@@ -219,13 +203,12 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = Cmd::Data {
+        let cmd = Cmd::Data {
             cmd,
             payment: payment_proof.clone(),
         };
-        let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = self.session.send_cmd(message).await?;
+        self.send_cmd(cmd).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -238,23 +221,15 @@ impl Client {
 
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
-async fn attempt_bootstrap(
-    qp2p_config: QuicP2pConfig,
-    keypair: Keypair,
-    err_sender: Sender<CmdError>,
-) -> Result<Session, Error> {
-    let mut attempts: u32 = 0;
-
-    let signer = Signer::new(keypair);
-
-    let mut session = Session::new(qp2p_config, signer, err_sender)?;
+async fn attempt_bootstrap(session: &mut Session, client_pk: PublicKey) -> Result<(), Error> {
+    let mut attempts: u8 = 0;
     loop {
-        let res = session.bootstrap().await;
+        let res = session.bootstrap(client_pk).await;
         match res {
-            Ok(()) => return Ok(session),
+            Ok(()) => return Ok(()),
             Err(err) => {
                 attempts += 1;
-                if attempts < 3 {
+                if attempts < NUM_OF_BOOTSTRAPPING_ATTEMPTS {
                     trace!(
                         "Error connecting to network! {:?}\nRetrying... ({})",
                         err,
@@ -302,7 +277,7 @@ mod tests {
         let pk = full_id.public_key();
 
         let client = create_test_client_with(Some(full_id)).await?;
-        assert_eq!(pk, client.public_key().await);
+        assert_eq!(pk, client.public_key());
 
         Ok(())
     }

@@ -58,7 +58,7 @@ impl Client {
     /// # Ok(())} );}
     /// ```
     pub async fn trigger_simulated_farming_payout(&mut self, amount: Token) -> Result<(), Error> {
-        let pk = self.public_key().await;
+        let pk = self.public_key();
         info!("Triggering a simulated farming payout to: {:?}", pk);
         self.simulated_farming_payout_dot.apply_inc();
 
@@ -72,9 +72,7 @@ impl Client {
         let simluated_farming_cmd =
             Cmd::Transfer(TransferCmd::SimulatePayout(simulated_transfer.clone()));
 
-        let message = self.create_cmd_message(simluated_farming_cmd).await?;
-
-        let _ = self.session.send_cmd(message).await?;
+        self.send_cmd(simluated_farming_cmd).await?;
 
         // If we're getting the payout for our own actor, update it here
         info!("Applying simulated payout locally, via query for history...");

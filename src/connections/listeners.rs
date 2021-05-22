@@ -10,6 +10,7 @@ use super::Session;
 use crate::Error;
 use log::{debug, error, info, trace, warn};
 use qp2p::IncomingMessages;
+use sn_data_types::PublicKey;
 use sn_messaging::{
     client::{ClientMsg, Event, ProcessMsg},
     section_info::{
@@ -39,13 +40,14 @@ impl Session {
     pub(crate) async fn spawn_message_listener_thread(
         &self,
         mut incoming_messages: IncomingMessages,
+        client_pk: PublicKey,
     ) {
         debug!("Listening for incoming messages");
         let mut session = self.clone();
         let _ = tokio::spawn(async move {
             loop {
                 match session
-                    .process_incoming_message(&mut incoming_messages)
+                    .process_incoming_message(&mut incoming_messages, client_pk)
                     .await
                 {
                     Ok(true) => (),
@@ -64,13 +66,14 @@ impl Session {
     pub(crate) async fn process_incoming_message(
         &mut self,
         incoming_messages: &mut IncomingMessages,
+        client_pk: PublicKey,
     ) -> Result<bool, Error> {
         if let Some((src, message)) = incoming_messages.next().await {
             let message_type = WireMsg::deserialize(message)?;
             trace!("Incoming message from {:?}", &src);
             match message_type {
                 MessageType::SectionInfo { msg, .. } => {
-                    if let Err(error) = self.handle_section_info_msg(msg, src).await {
+                    if let Err(error) = self.handle_section_info_msg(msg, src, client_pk).await {
                         error!("Error handling network info message: {:?}", error);
                     }
                 }
@@ -101,6 +104,7 @@ impl Session {
         &mut self,
         msg: SectionInfoMsg,
         src: SocketAddr,
+        client_pk: PublicKey,
     ) -> Result<(), Error> {
         trace!("Handling network info message {:?}", msg);
 
@@ -109,19 +113,21 @@ impl Session {
                 debug!("GetSectionResponse::Success!");
                 self.update_session_info(info).await
             }
-            SectionInfoMsg::RegisterEndUserError(error)
-            | SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(error)) => {
-                warn!("Message was interrupted due to {:?}. This will most likely need to be sent again.", error);
-
-                if let SectionInfoError::InvalidBootstrap(_) = error {
-                    debug!("Attempting to connect to elders again");
-                    self.connect_to_elders().await?;
-                }
-
-                if let SectionInfoError::TargetSectionInfoOutdated(info) = error {
-                    trace!("Updated network info: ({:?})", info);
-                    self.update_session_info(info).await?;
-                }
+            SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(
+                SectionInfoError::InvalidBootstrap(err),
+            )) => {
+                warn!(
+                    "Message was interrupted due to {:?}. Attempting to connect to elders again.",
+                    err
+                );
+                self.connect_to_elders().await?;
+                Ok(())
+            }
+            SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(
+                SectionInfoError::TargetSectionInfoOutdated(info),
+            )) => {
+                debug!("Updated section info received: {:?}", info);
+                self.update_session_info(info).await?;
                 Ok(())
             }
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
@@ -138,7 +144,8 @@ impl Session {
                     .qp2p
                     .rebootstrap(&endpoint, new_elders_addrs.as_slice())
                     .await?;
-                self.send_get_section_query(&boostrapped_peer).await?;
+                self.send_get_section_query(client_pk, &boostrapped_peer)
+                    .await?;
 
                 Ok(())
             }
@@ -151,12 +158,11 @@ impl Session {
                 }
                 Ok(())
             }
-            SectionInfoMsg::RegisterEndUserCmd { .. } | SectionInfoMsg::GetSectionQuery(_) => {
-                Err(Error::UnexpectedMessageOnJoin(format!(
-                    "bootstrapping failed since an invalid response ({:?}) was received",
-                    msg
-                )))
-            }
+            SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(_))
+            | SectionInfoMsg::GetSectionQuery(_) => Err(Error::UnexpectedMessageOnJoin(format!(
+                "bootstrapping failed since an invalid response ({:?}) was received",
+                msg
+            ))),
         }
     }
 

@@ -8,21 +8,16 @@
 
 use super::{QueryResult, Session};
 use crate::Error;
-use bincode::serialize;
 use futures::future::{join_all, select_all};
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
-use sn_data_types::{Blob, PrivateBlob, PublicBlob, TransferValidated};
+use sn_data_types::{Blob, PrivateBlob, PublicBlob, PublicKey, TransferValidated};
 use sn_messaging::{
-    client::{BlobRead, ClientMsg, DataQuery, ProcessMsg, Query, QueryResponse},
+    client::{BlobRead, ClientMsg, ClientSigned, Cmd, DataQuery, ProcessMsg, Query, QueryResponse},
     section_info::Message as SectionInfoMsg,
     MessageId,
 };
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    net::SocketAddr,
-    time::Duration,
-};
+use std::{collections::BTreeSet, net::SocketAddr, time::Duration};
 use tokio::{
     sync::mpsc::{channel, Sender},
     task::JoinHandle,
@@ -37,19 +32,14 @@ const NUM_OF_ELDERS_SUBSET_FOR_QUERIES: usize = 3;
 
 impl Session {
     /// Bootstrap to the network maintaining connections to several nodes.
-    pub async fn bootstrap(&mut self) -> Result<(), Error> {
+    pub async fn bootstrap(&mut self, client_pk: PublicKey) -> Result<(), Error> {
         trace!(
             "Trying to bootstrap to the network with public_key: {:?}",
-            self.client_public_key()
+            client_pk
         );
 
-        let (
-            endpoint,
-            _incoming_connections,
-            mut incoming_messages,
-            mut disconnections,
-            mut bootstrapped_peer,
-        ) = self.qp2p.bootstrap().await?;
+        let (endpoint, _, mut incoming_messages, mut disconnections, mut bootstrapped_peer) =
+            self.qp2p.bootstrap().await?;
 
         self.endpoint = Some(endpoint.clone());
         let mut bootstrap_nodes = endpoint
@@ -63,15 +53,18 @@ impl Session {
                 let _ = connected_elders.lock().await.remove(&disconnected_peer);
             }
         });
-        self.send_get_section_query(&bootstrapped_peer).await?;
+
+        self.send_get_section_query(client_pk, &bootstrapped_peer)
+            .await?;
 
         // Bootstrap and send a handshake request to the bootstrapped peer
         let mut we_have_keyset = false;
         while !we_have_keyset {
-            // This means that the peer we bootstrapped to has responded with a SectionInfo Message
+            // This means that the peer we bootstrapped to
+            // has responded with a SectionInfo Message
             if let Ok(Ok(true)) = timeout(
                 Duration::from_secs(30),
-                self.process_incoming_message(&mut incoming_messages),
+                self.process_incoming_message(&mut incoming_messages, client_pk),
             )
             .await
             {
@@ -89,34 +82,46 @@ impl Session {
             }
         }
 
-        self.spawn_message_listener_thread(incoming_messages).await;
+        self.spawn_message_listener_thread(incoming_messages, client_pk)
+            .await;
+
+        debug!(
+            "Successfully obtained the list of Elders to send all messages to: {:?}",
+            self.connected_elders.lock().await.keys()
+        );
 
         Ok(())
     }
 
     /// Send a `ClientMsg` to the network without awaiting for a response.
-    pub async fn send_cmd(&self, msg: ProcessMsg) -> Result<(), Error> {
-        let msg_id = msg.id();
+    pub async fn send_cmd(&self, cmd: Cmd, client_signed: ClientSigned) -> Result<(), Error> {
+        let msg_id = MessageId::new();
         let endpoint = self.endpoint()?.clone();
 
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
+        debug!("Sending command to {} Elders", elders.len());
 
         let src_addr = endpoint.socket_addr();
         trace!(
             "Sending (from {}) command message {:?} w/ id: {:?}",
             src_addr,
-            msg,
+            cmd,
             msg_id
         );
-
-        let msg = ClientMsg::Process(msg);
 
         let section_pk = self
             .section_key()
             .await?
             .bls()
             .ok_or(Error::NoBlsSectionKey)?;
-        let dest_section_name = XorName::from(self.client_public_key());
+        let dest_section_name = XorName::from(client_signed.public_key);
+
+        let msg = ClientMsg::Process(ProcessMsg::Cmd {
+            id: msg_id,
+            cmd,
+            client_signed,
+        });
+
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
         // Send message to all Elders concurrently
@@ -157,17 +162,17 @@ impl Session {
     /// Send a transfer validation message to all Elder without awaiting for a response.
     pub async fn send_transfer_validation(
         &self,
-        msg: ProcessMsg,
+        cmd: Cmd,
+        client_signed: ClientSigned,
         sender: Sender<Result<TransferValidated, Error>>,
-    ) -> Result<(), Error> {
+    ) -> Result<MessageId, Error> {
+        let msg_id = MessageId::new();
         info!(
             "Sending transfer validation command {:?} w/ id: {:?}",
-            msg,
-            msg.id()
+            cmd, msg_id
         );
         let endpoint = self.endpoint()?.clone();
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
-
         let pending_transfers = self.pending_transfers.clone();
 
         let section_pk = self
@@ -175,23 +180,22 @@ impl Session {
             .await?
             .bls()
             .ok_or(Error::NoBlsSectionKey)?;
-        let dest_section_name = XorName::from(self.client_public_key());
-        let msg = ClientMsg::Process(msg);
+        let dest_section_name = XorName::from(client_signed.public_key);
+
+        let msg = ClientMsg::Process(ProcessMsg::Cmd {
+            id: msg_id,
+            cmd,
+            client_signed,
+        });
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
-        let msg_id = msg.id();
-
-        // block off the lock to avoid long await calls
-        {
-            let _ = pending_transfers.lock().await.insert(msg_id, sender);
-        }
+        let _ = pending_transfers.lock().await.insert(msg_id, sender);
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
         for socket in elders.iter() {
             let msg_bytes_clone = msg_bytes.clone();
             let socket = *socket;
-
             let endpoint = endpoint.clone();
 
             let task_handle = tokio::spawn(async move {
@@ -209,12 +213,17 @@ impl Session {
         // TODO: return an error if we didn't successfully
         // send it to at least a majority of Elders??
 
-        Ok(())
+        Ok(msg_id)
     }
 
     /// Send a Query `ClientMsg` to the network awaiting for the response.
-    pub(crate) async fn send_query(&self, query: Query) -> Result<QueryResult, Error> {
+    pub(crate) async fn send_query(
+        &self,
+        query: Query,
+        client_signed: ClientSigned,
+    ) -> Result<QueryResult, Error> {
         let data_name = query.dst_address();
+
         let endpoint = self.endpoint()?.clone();
         let pending_queries = self.pending_queries.clone();
 
@@ -224,15 +233,19 @@ impl Session {
             None
         };
 
-        let msg_id = MessageId::new();
-        let msg = ClientMsg::Process(ProcessMsg::Query { query, id: msg_id });
-
         let section_pk = self
             .section_key()
             .await?
             .bls()
             .ok_or(Error::NoBlsSectionKey)?;
-        let dest_section_name = XorName::from(self.client_public_key());
+        let dest_section_name = XorName::from(client_signed.public_key);
+
+        let msg_id = MessageId::new();
+        let msg = ClientMsg::Process(ProcessMsg::Query {
+            id: msg_id,
+            query,
+            client_signed,
+        });
 
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
@@ -376,10 +389,11 @@ impl Session {
 
         debug!(
             "Response obtained for query w/id {:?}: {:?}",
-            &msg_id, &response
+            msg_id, response
         );
 
         // Remove the response sender
+        trace!("Removing channel for {:?}", msg_id);
         let _ = pending_queries.lock().await.remove(&msg_id);
 
         response
@@ -390,6 +404,7 @@ impl Session {
     // Get section info from the peer we have bootstrapped with.
     pub(crate) async fn send_get_section_query(
         &self,
+        client_pk: PublicKey,
         bootstrapped_peer: &SocketAddr,
     ) -> Result<(), Error> {
         if self.is_connecting_to_new_elders {
@@ -398,14 +413,17 @@ impl Session {
             return Ok(());
         }
 
-        // 1. We query the network for section info.
-        trace!("Querying for section info from bootstrapped node...");
+        trace!(
+            "Querying for section info from bootstrapped node: {:?}",
+            bootstrapped_peer
+        );
+
+        let dest_section_name = XorName::from(client_pk);
 
         // FIXME: we don't know our section PK. We must supply a pk for now we do a random one...
         let random_section_pk = threshold_crypto::SecretKey::random().public_key();
-        let dest_section_name = XorName::from(self.client_public_key());
 
-        let msg = SectionInfoMsg::GetSectionQuery(self.client_public_key())
+        let msg = SectionInfoMsg::GetSectionQuery(client_pk)
             .serialize(dest_section_name, random_section_pk)?;
 
         self.endpoint()?
@@ -426,112 +444,19 @@ impl Session {
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
     pub(crate) async fn connect_to_elders(&mut self) -> Result<(), Error> {
+        // TODO: remove this function completely
+
         self.is_connecting_to_new_elders = true;
-        // Connect to all Elders concurrently
-        // We spawn a task per each node to connect to
-        let mut tasks = Vec::default();
-        let supermajority = self.super_majority().await;
 
         if self.known_elders_count().await == 0 {
             // this is not necessarily an error in case we didn't get elder info back yet
             warn!("Not attempted to connect, insufficient elders yet known");
         }
 
-        let endpoint = self.endpoint()?;
-        let msg = self.bootstrap_cmd().await?;
+        let new_elders = self.all_known_elders.lock().await.clone();
+        let peers_len = new_elders.len();
 
-        let peers;
-        {
-            peers = self.all_known_elders.lock().await.clone();
-        }
-
-        let peers_len = peers.len();
-
-        debug!(
-            "Sending bootstrap cmd from {} to {} peers.., supermajority would be {:?} nodes",
-            endpoint.socket_addr(),
-            peers_len,
-            supermajority
-        );
-
-        debug!(
-            "Peers ({}) to be used for bootstrapping: {:?}",
-            peers_len, peers
-        );
-
-        for (peer_addr, name) in peers {
-            let endpoint = endpoint.clone();
-            let msg = msg.clone();
-            let task_handle = tokio::spawn(async move {
-                let mut result = Err(Error::ElderConnection);
-                let mut connected = false;
-                let mut attempts: usize = 0;
-                while !connected && attempts <= NUMBER_OF_RETRIES {
-                    attempts += 1;
-                    if let Ok(Ok(())) =
-                        timeout(Duration::from_secs(30), endpoint.connect_to(&peer_addr)).await
-                    {
-                        endpoint.send_message(msg.clone(), &peer_addr).await?;
-                        connected = true;
-
-                        debug!("Elder conn attempt #{} @ {} SUCCESS", attempts, peer_addr);
-
-                        result = Ok((peer_addr, name))
-                    } else {
-                        debug!("Elder conn attempt #{} @ {} FAILED", attempts, peer_addr);
-                    }
-                }
-
-                result
-            });
-            tasks.push(task_handle);
-        }
-
-        // TODO: Do we need a timeout here to check sufficient time has passed + or sufficient connections?
-        let mut has_attempted_all_connections = false;
-        let mut todo = tasks;
-        let mut new_elders = BTreeMap::new();
-
-        while !has_attempted_all_connections {
-            if todo.is_empty() {
-                warn!("No more elder connections to try");
-                break;
-            }
-
-            let (res, _idx, remaining_futures) = select_all(todo.into_iter()).await;
-            if remaining_futures.is_empty() {
-                has_attempted_all_connections = true;
-            }
-
-            todo = remaining_futures;
-
-            if let Ok(elder_result) = res {
-                let res = elder_result.map_err(|err| {
-                    // elder connection retires already occur above
-                    warn!("Failed to connect to Elder @ : {:?}", err);
-                });
-
-                if let Ok((socket, name)) = res {
-                    info!("Connected to elder: {:?}", socket);
-                    let _ = new_elders.insert(socket, name);
-                }
-            }
-
-            if new_elders.len() >= peers_len {
-                has_attempted_all_connections = true;
-            }
-
-            if new_elders.len() < peers_len {
-                warn!("Connected to only {:?} new_elders.", new_elders.len());
-            }
-
-            if new_elders.len() < supermajority && has_attempted_all_connections {
-                debug!("Attempted all connections and failed...");
-                return Err(Error::InsufficientElderConnections(new_elders.len()));
-            }
-        }
-
-        trace!("Connected to {} Elders.", new_elders.len());
+        trace!("We now know our {} Elders.", peers_len);
         {
             let mut session_elders = self.connected_elders.lock().await;
             *session_elders = new_elders;
@@ -540,28 +465,5 @@ impl Session {
         self.is_connecting_to_new_elders = false;
 
         Ok(())
-    }
-
-    // Private helpers
-
-    async fn bootstrap_cmd(&self) -> Result<bytes::Bytes, Error> {
-        let socketaddr_sig = self
-            .signer
-            .sign(&serialize(&self.endpoint()?.socket_addr())?)
-            .await?;
-
-        // FIXME: Do we actually know our seciton PK here?
-
-        // Hack: This is jsut a random bls pk, we dont know our section as yet, but right now
-        // a target pk is needed on all msgs
-        let random_section_pk = threshold_crypto::SecretKey::random().public_key();
-        let dest_section_name = XorName::from(self.client_public_key());
-
-        SectionInfoMsg::RegisterEndUserCmd {
-            end_user: self.client_public_key(),
-            socketaddr_sig,
-        }
-        .serialize(dest_section_name, random_section_pk)
-        .map_err(Error::MessagingProtocol)
     }
 }

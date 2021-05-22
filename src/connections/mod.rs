@@ -8,9 +8,6 @@
 
 mod listeners;
 mod messaging;
-mod signer;
-
-pub use signer::Signer;
 
 use crate::Error;
 use futures::lock::Mutex;
@@ -54,16 +51,11 @@ pub struct Session {
     all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
     section_prefix: Arc<Mutex<Option<Prefix>>>,
-    signer: Signer,
     is_connecting_to_new_elders: bool,
 }
 
 impl Session {
-    pub fn new(
-        qp2p_config: QuicP2pConfig,
-        signer: Signer,
-        err_sender: Sender<CmdError>,
-    ) -> Result<Self, Error> {
+    pub fn new(qp2p_config: QuicP2pConfig, err_sender: Sender<CmdError>) -> Result<Self, Error> {
         debug!("QP2p config: {:?}", qp2p_config);
 
         let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), true)?;
@@ -77,7 +69,6 @@ impl Session {
             connected_elders: Arc::new(Mutex::new(Default::default())),
             all_known_elders: Arc::new(Mutex::new(Default::default())),
             section_prefix: Arc::new(Mutex::new(None)),
-            signer,
             is_connecting_to_new_elders: false,
         })
     }
@@ -95,10 +86,6 @@ impl Session {
     /// Get the elders count of our section elders as provided by SectionInfo
     pub async fn known_elders_count(&self) -> usize {
         self.all_known_elders.lock().await.len()
-    }
-
-    pub fn client_public_key(&self) -> PublicKey {
-        self.signer.public_key()
     }
 
     pub fn endpoint(&self) -> Result<&Endpoint, Error> {

@@ -42,7 +42,7 @@ impl Client {
         permissions: BTreeMap<PublicKey, PrivatePermissions>,
     ) -> Result<Address, Error> {
         trace!("Store Private Register data {:?}", name);
-        let pk = self.public_key().await;
+        let pk = self.public_key();
         let policy = PrivatePolicy { owner, permissions };
         let priv_register = Register::new_private(pk, name, tag, Some(policy));
         let address = *priv_register.address();
@@ -68,7 +68,7 @@ impl Client {
         permissions: BTreeMap<User, PublicPermissions>,
     ) -> Result<Address, Error> {
         trace!("Store Public Register data {:?}", name);
-        let pk = self.public_key().await;
+        let pk = self.public_key();
         let policy = PublicPolicy { owner, permissions };
         let pub_register = Register::new_public(pk, name, tag, Some(policy));
         let address = *pub_register.address();
@@ -87,13 +87,12 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = Cmd::Data {
+        let cmd = Cmd::Data {
             cmd,
             payment: payment_proof.clone(),
         };
-        let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = self.session.send_cmd(message).await?;
+        self.send_cmd(cmd).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -264,7 +263,7 @@ mod tests {
 
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         // store a Private Register
         let mut perms = BTreeMap::<PublicKey, PrivatePermissions>::new();
@@ -304,7 +303,7 @@ mod tests {
         let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<PublicKey, PrivatePermissions>::new();
         let _ = perms.insert(owner, PrivatePermissions::new(true, true));
         let address = client
@@ -342,7 +341,7 @@ mod tests {
 
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<User, PublicPermissions>::new();
         let _ = perms.insert(User::Key(owner), PublicPermissions::new(None));
         let address = client
@@ -378,7 +377,7 @@ mod tests {
         let tag = 10;
         let client = create_test_client().await?;
 
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<User, PublicPermissions>::new();
         let _ = perms.insert(User::Key(owner), PublicPermissions::new(true));
 
@@ -434,7 +433,7 @@ mod tests {
         let tag = 10;
         let client = create_test_client().await?;
 
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<PublicKey, PrivatePermissions>::new();
         let _ = perms.insert(owner, PrivatePermissions::new(true, true));
         let address = client
@@ -454,7 +453,7 @@ mod tests {
         let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         // store a Private Register
         let mut perms = BTreeMap::<PublicKey, PrivatePermissions>::new();
@@ -496,7 +495,7 @@ mod tests {
 
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         // store a Public Register
         let mut perms = BTreeMap::<User, PublicPermissions>::new();
@@ -532,7 +531,7 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 10;
         let client = create_test_client().await?;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let perms = BTreeMap::<PublicKey, PrivatePermissions>::new();
         let address = client
             .store_private_register(name, tag, owner, perms)

@@ -358,7 +358,7 @@ impl Client {
             let data: Blob = if public {
                 PublicBlob::new(contents).into()
             } else {
-                PrivateBlob::new(contents, self.public_key().await).into()
+                PrivateBlob::new(contents, self.public_key()).into()
             };
 
             // If data map blob is less thatn 1MB return it so it can be directly sent to the network
@@ -446,7 +446,7 @@ mod tests {
 
         let value = generate_random_vector::<u8>(10);
 
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let (_, expected_address) = Client::blob_data_map(value.clone(), Some(owner)).await?;
 
         // Get non-existent Blob
@@ -690,10 +690,7 @@ mod tests {
         let blob = if public {
             Blob::Public(PublicBlob::new(raw_data.clone()))
         } else {
-            Blob::Private(PrivateBlob::new(
-                raw_data.clone(),
-                client.public_key().await,
-            ))
+            Blob::Private(PrivateBlob::new(raw_data.clone(), client.public_key()))
         };
 
         let address_before = blob.address();
@@ -726,7 +723,7 @@ mod tests {
         let privately_owned = if public {
             None
         } else {
-            Some(client.public_key().await)
+            Some(client.public_key())
         };
         let (_, blob_address) = Client::blob_data_map(raw_data, privately_owned).await?;
         assert_eq!(blob_address, address);

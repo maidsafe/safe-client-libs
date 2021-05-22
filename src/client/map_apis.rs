@@ -55,9 +55,9 @@ impl Client {
     /// let mut entries = MapSeqEntries::default();
     /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = permissions.insert(client.public_key(), permission_set);
     /// let _ = entries.insert(b"key".to_vec(), MapSeqValue { data: b"value".to_vec(), version: 0 });
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let _ = client.store_seq_map(name, tag, owner, Some(entries), Some(permissions)).await?;
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
@@ -109,9 +109,9 @@ impl Client {
     /// let mut entries = MapUnseqEntries::default();
     /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = permissions.insert(client.public_key(), permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let _ = client.store_unseq_map(name, tag, owner, Some(entries), Some(permissions)).await?;
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
@@ -164,9 +164,9 @@ impl Client {
     /// let mut entries = MapUnseqEntries::default();
     /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = permissions.insert(client.public_key(), permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
     /// let _ = client.delete_map(address).await?;
@@ -252,9 +252,9 @@ impl Client {
     /// let mut entries = MapUnseqEntries::default();
     /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = permissions.insert(client.public_key(), permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
     /// let _ = client.get_map(address).await?;
@@ -301,9 +301,9 @@ impl Client {
     /// let _ = entries.insert(b"beep".to_vec(), b"boop".to_vec() );
     /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = permissions.insert(client.public_key(), permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
     /// let received_value = match client.get_map_value(address, b"beep".to_vec()).await? {
@@ -371,9 +371,9 @@ impl Client {
     /// let _ = entries.insert(b"beep".to_vec(), b"boop".to_vec() );
     /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = permissions.insert(client.public_key(), permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
     /// let version = client.get_map_version(address).await?;
@@ -687,11 +687,11 @@ mod tests {
         let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-        let _ = permissions.insert(client.public_key().await, permission_set);
+        let _ = permissions.insert(client.public_key(), permission_set);
         let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
         let entries_keys = entries.keys().cloned().collect();
         let entries_values: Vec<Vec<u8>> = entries.values().cloned().collect();
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let address = client
             .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
@@ -746,8 +746,8 @@ mod tests {
         let entries_values: Vec<MapSeqValue> = entries.values().cloned().collect();
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new().allow(MapAction::Read);
-        let _ = permissions.insert(client.public_key().await, permission_set);
-        let owner = client.public_key().await;
+        let _ = permissions.insert(client.public_key(), permission_set);
+        let owner = client.public_key();
 
         let address = client
             .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
@@ -793,7 +793,7 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Seq { name, tag };
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         let address = client.store_seq_map(name, tag, owner, None, None).await?;
 
@@ -824,7 +824,7 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         let address = client.store_unseq_map(name, tag, owner, None, None).await?;
 
@@ -856,7 +856,7 @@ mod tests {
         let mapref = MapAddress::Unseq { name, tag };
 
         let client = create_test_client().await?;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
@@ -881,7 +881,7 @@ mod tests {
             .allow(MapAction::Read)
             .allow(MapAction::Insert)
             .allow(MapAction::ManagePermissions);
-        let user = client.public_key().await;
+        let user = client.public_key();
         let random_user = gen_ed_keypair().public_key();
         let random_pk = gen_ed_keypair().public_key();
 
@@ -926,13 +926,13 @@ mod tests {
             .allow(MapAction::Read)
             .allow(MapAction::Insert)
             .allow(MapAction::ManagePermissions);
-        let user = client.public_key().await;
+        let user = client.public_key();
         let random_user = gen_ed_keypair().public_key();
 
         let _ = permissions.insert(user, permission_set.clone());
         let _ = permissions.insert(random_user, permission_set);
 
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         // Store the data
         let address = client
@@ -1003,7 +1003,7 @@ mod tests {
             .allow(MapAction::Insert)
             .allow(MapAction::Update)
             .allow(MapAction::Delete);
-        let user = client.public_key().await;
+        let user = client.public_key();
         let _ = permissions.insert(user, permission_set);
         let mut entries: MapSeqEntries = Default::default();
         let _ = entries.insert(
@@ -1020,7 +1020,7 @@ mod tests {
                 version: 0,
             },
         );
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         let address = client
             .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
@@ -1100,13 +1100,13 @@ mod tests {
             .allow(MapAction::Insert)
             .allow(MapAction::Update)
             .allow(MapAction::Delete);
-        let user = client.public_key().await;
+        let user = client.public_key();
         let _ = permissions.insert(user, permission_set);
         let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
         let _ = entries.insert(b"key1".to_vec(), b"value".to_vec());
         let _ = entries.insert(b"key2".to_vec(), b"value".to_vec());
 
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let address = client
             .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
@@ -1160,7 +1160,7 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 10;
         let client = create_test_client().await?;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 

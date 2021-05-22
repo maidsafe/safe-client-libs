@@ -58,7 +58,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -80,7 +80,7 @@ impl Client {
         permissions: BTreeMap<PublicKey, SequencePrivatePermissions>,
     ) -> Result<SequenceAddress, Error> {
         trace!("Store Private Sequence Data {:?}", name);
-        let pk = self.public_key().await;
+        let pk = self.public_key();
         let policy = SequencePrivatePolicy { owner, permissions };
         let mut data = Sequence::new_private(pk, pk.to_string(), name, tag, Some(policy));
         let address = *data.address();
@@ -129,7 +129,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
     ///
     /// // Set the access permissions
@@ -151,7 +151,7 @@ impl Client {
         permissions: BTreeMap<SequenceUser, SequencePublicPermissions>,
     ) -> Result<SequenceAddress, Error> {
         trace!("Store Public Sequence Data {:?}", name);
-        let pk = self.public_key().await;
+        let pk = self.public_key();
         let policy = SequencePublicPolicy { owner, permissions };
         let mut data = Sequence::new_public(pk, pk.to_string(), name, tag, Some(policy));
         let address = *data.address();
@@ -196,7 +196,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -217,13 +217,12 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = Cmd::Data {
+        let cmd = Cmd::Data {
             cmd,
             payment: payment_proof.clone(),
         };
-        let message = self.create_cmd_message(msg_contents).await?;
 
-        let _ = self.session.send_cmd(message).await?;
+        self.send_cmd(cmd).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -250,7 +249,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -323,7 +322,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -372,7 +371,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -430,7 +429,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -489,7 +488,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -553,7 +552,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -610,7 +609,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
     ///
     /// // Set the access permissions
@@ -671,7 +670,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -730,7 +729,7 @@ impl Client {
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
-    /// let owner = client.public_key().await;
+    /// let owner = client.public_key();
     /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
     ///
     /// // Set the access permissions
@@ -782,7 +781,7 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 10;
         let client = create_test_client().await?;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
         let sequence_address = client
             .store_private_sequence(None, name, tag, owner, perms)
@@ -817,7 +816,7 @@ mod tests {
 
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         // store a Private Sequence
         let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
@@ -869,7 +868,7 @@ mod tests {
         let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
         let _ = perms.insert(owner, SequencePrivatePermissions::new(true, true));
         let address = client
@@ -952,7 +951,7 @@ mod tests {
 
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
         let _ = perms.insert(
             SequenceUser::Key(owner),
@@ -1029,7 +1028,7 @@ mod tests {
         let tag = 10;
         let client = create_test_client().await?;
 
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
         let _ = perms.insert(
             SequenceUser::Key(owner),
@@ -1135,7 +1134,7 @@ mod tests {
         let tag = 10;
         let client = create_test_client().await?;
 
-        let owner = client.public_key().await;
+        let owner = client.public_key();
         let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
         let _ = perms.insert(owner, SequencePrivatePermissions::new(true, true));
         let address = client
@@ -1162,7 +1161,7 @@ mod tests {
         let client = create_test_client().await?;
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         // store a Private Sequence
         let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
@@ -1210,7 +1209,7 @@ mod tests {
 
         let name = XorName(rand::random());
         let tag = 15000;
-        let owner = client.public_key().await;
+        let owner = client.public_key();
 
         // store a Public Sequence
         let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();

@@ -76,12 +76,12 @@ impl Client {
         &self,
         pk: Option<PublicKey>,
     ) -> Result<Token, Error> {
-        let public_key = pk.unwrap_or(self.public_key().await);
+        let public_key = pk.unwrap_or_else(|| self.public_key());
         info!("Getting balance for {:?} or self", public_key);
 
         let query = Query::Transfer(TransferQuery::GetBalance(public_key));
 
-        let query_result = self.session.send_query(query).await?;
+        let query_result = self.send_query(query).await?;
         let msg_id = query_result.msg_id;
 
         match query_result.response {
@@ -136,30 +136,24 @@ impl Client {
         // first make sure our balance  history is up to date
         self.get_history().await?;
 
-        {
-            info!(
-                "Our actor balance at send: {:?}",
-                self.transfer_actor.lock().await.balance()
-            );
-        }
-        let initiated;
-        {
-            initiated = self
-                .transfer_actor
-                .lock()
-                .await
-                .transfer(amount, to, "asdf".to_string())?
-                .ok_or(Error::NoTransferGenerated)?;
-        }
+        info!(
+            "Our actor balance at send: {:?}",
+            self.transfer_actor.lock().await.balance()
+        );
+
+        let initiated = self
+            .transfer_actor
+            .lock()
+            .await
+            .transfer(amount, to, "".to_string())?
+            .ok_or(Error::NoTransferGenerated)?;
 
         let signed_transfer = SignedTransfer {
             debit: initiated.signed_debit,
             credit: initiated.signed_credit,
         };
         let dot = signed_transfer.id();
-        let msg_contents = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
-
-        let message = self.create_cmd_message(msg_contents).await?;
+        let cmd = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
 
         self.transfer_actor
             .lock()
@@ -170,18 +164,17 @@ impl Client {
             }))?;
 
         let transfer_proof: TransferAgreementProof =
-            self.await_validation(message, signed_transfer.id()).await?;
+            self.await_validation(cmd, signed_transfer.id()).await?;
 
         // Register the transfer on the network.
-        let msg_contents = Cmd::Transfer(TransferCmd::RegisterTransfer(transfer_proof.clone()));
+        let cmd = Cmd::Transfer(TransferCmd::RegisterTransfer(transfer_proof.clone()));
 
-        let message = self.create_cmd_message(msg_contents).await?;
         trace!(
             "Transfer proof received and to be sent in RegisterTransfer req: {:?}",
             transfer_proof
         );
 
-        let _ = self.session.send_cmd(message).await?;
+        self.send_cmd(cmd).await?;
 
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.
@@ -354,7 +347,7 @@ mod tests {
         let mut client = create_test_client().await?;
         let receiving_client = create_test_client().await?;
 
-        let wallet1 = receiving_client.public_key().await;
+        let wallet1 = receiving_client.public_key();
 
         client
             .trigger_simulated_farming_payout(Token::from_str("100.0")?)
@@ -413,7 +406,7 @@ mod tests {
         let client = create_test_client().await?;
         let receiving_client = create_test_client().await?;
 
-        let wallet1 = receiving_client.public_key().await;
+        let wallet1 = receiving_client.public_key();
 
         // Try transferring token exceeding our balance.
         match client.send_tokens(wallet1, Token::from_str("5000")?).await {
@@ -435,7 +428,7 @@ mod tests {
         let client = create_test_client().await?;
         let receiving_client = create_test_client().await?;
 
-        let wallet1 = receiving_client.public_key().await;
+        let wallet1 = receiving_client.public_key();
 
         let _ = client.send_tokens(wallet1, Token::from_str("10")?).await?;
 
