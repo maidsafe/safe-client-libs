@@ -99,7 +99,11 @@ impl Session {
         let endpoint = self.endpoint()?.clone();
 
         let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
-        debug!("Sending command to {} Elders", elders.len());
+        debug!(
+            "Sending command w/id {:?}, to {} Elders",
+            msg_id,
+            elders.len()
+        );
 
         let src_addr = endpoint.socket_addr();
         trace!(

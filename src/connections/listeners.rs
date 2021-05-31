@@ -284,6 +284,7 @@ impl Session {
                     "Cmd Error was received for Message w/ID: {:?}, sending on error channel",
                     correlation_id
                 );
+                trace!("Error received is: {:?}", error);
                 let _ = self.incoming_err_sender.send(error).await;
             }
             msg => {
