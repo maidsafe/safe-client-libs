@@ -218,7 +218,8 @@ mod tests {
         // initial 10 on creation from farming simulation minus 1
         assert_eq!(client.get_local_balance().await, Token::from_str("9")?);
 
-        assert_eq!(client.get_balance().await?, Token::from_str("9")?);
+        // Fetch balance from network and assert the same.
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("9")?);
 
         Ok(())
     }
@@ -235,14 +236,7 @@ mod tests {
             .await?;
 
         // Initial 10 token on creation from farming simulation minus 1
-        // Assert locally
-        assert_eq!(client.get_local_balance().await, Token::from_str("9")?);
-
-        // Fetch balance from network and assert the same.
-        assert_eq!(
-            client.get_balance_from_network(None).await?,
-            Token::from_str("9")?
-        );
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("9")?);
 
         let _ = client
             .send_tokens(keypair2.public_key(), Token::from_str("2")?)
@@ -252,10 +246,7 @@ mod tests {
         assert_eq!(client.get_local_balance().await, Token::from_str("7")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(
-            client.get_balance_from_network(None).await?,
-            Token::from_str("7")?
-        );
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("7")?);
 
         Ok(())
     }
