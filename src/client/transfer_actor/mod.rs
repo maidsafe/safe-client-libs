@@ -175,8 +175,7 @@ impl Client {
         let query_result = self.send_query(query).await?;
         let msg_id = query_result.msg_id;
 
-
-        let (bytes, cost_of_put, section_key)  =  match query_result.response {
+        let (bytes, cost_of_put, section_key) = match query_result.response {
             QueryResponse::GetStoreCost(cost) => cost.map_err(|err| Error::from((err, msg_id))),
             _ => Err(Error::UnexpectedStoreCostResponse(query_result.response)),
         }?;
@@ -194,7 +193,6 @@ impl Client {
         );
 
         Ok((bytes, buffered_cost, section_key))
-
     }
 
     /// Validates a transaction for paying store_cost

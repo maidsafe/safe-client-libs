@@ -397,7 +397,7 @@ impl Client {
 mod tests {
     use super::{Blob, BlobAddress, Client, DataMap, DataMapLevel, Error};
     use crate::utils::{generate_random_vector, test_utils::create_test_client};
-    use crate::{client::blob_storage::BlobStorage, retry_loop, retry_loop_for_err};
+    use crate::{client::blob_storage::BlobStorage, retry_err_loop, retry_loop};
     use anyhow::{anyhow, bail, Result};
     use bincode::deserialize;
     use self_encryption::Storage;
@@ -531,7 +531,7 @@ mod tests {
 
         if let DataMap::Chunks(chunks) = root_data_map {
             for chunk in chunks {
-                retry_loop_for_err!(blob_storage.get(&chunk.hash));
+                let _ = retry_err_loop!(blob_storage.get(&chunk.hash));
             }
 
             Ok(())

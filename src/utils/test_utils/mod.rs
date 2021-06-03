@@ -62,7 +62,7 @@ macro_rules! retry_loop {
 #[cfg(test)]
 #[macro_export]
 /// Helper for tests to retry an operation awaiting for a successful response result
-macro_rules! retry_loop_for_err {
+macro_rules! retry_err_loop {
     ($async_func:expr) => {
         loop {
             match $async_func.await {
