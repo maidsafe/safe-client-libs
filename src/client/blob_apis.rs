@@ -397,7 +397,7 @@ impl Client {
 mod tests {
     use super::{Blob, BlobAddress, Client, DataMap, DataMapLevel, Error};
     use crate::utils::{generate_random_vector, test_utils::create_test_client};
-    use crate::{client::blob_storage::BlobStorage, retry_loop};
+    use crate::{client::blob_storage::BlobStorage, retry_loop, retry_loop_for_err};
     use anyhow::{anyhow, bail, Result};
     use bincode::deserialize;
     use self_encryption::Storage;
@@ -476,7 +476,7 @@ mod tests {
         // Test putting public Blob with the same value. Should not conflict.
         let pub_address = client.store_public_blob(&value).await?;
 
-        // Assert that the Blob is stored.
+        // Assert that the pub Blob is stored.
         let fetched_data = retry_loop!(client.read_blob(pub_address, None, None));
         assert_eq!(value, fetched_data);
 
@@ -484,7 +484,7 @@ mod tests {
         client.delete_blob(priv_address).await?;
 
         // Make sure Blob was deleted
-        let mut attempts = 3u8;
+        let mut attempts = 10u8;
         while client.read_blob(priv_address, None, None).await.is_ok() {
             tokio::time::sleep(tokio::time::Duration::from_millis(4000)).await;
             if attempts == 0 {
@@ -531,18 +531,7 @@ mod tests {
 
         if let DataMap::Chunks(chunks) = root_data_map {
             for chunk in chunks {
-                let mut attempts = 3u8;
-                while blob_storage.get(&chunk.hash).await.is_ok() {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                    if attempts == 0 {
-                        bail!(
-                            "At least one of the chunks of the private Blob was not deleted: {:?}",
-                            chunk.hash
-                        );
-                    } else {
-                        attempts -= 1;
-                    }
-                }
+                retry_loop_for_err!(blob_storage.get(&chunk.hash));
             }
 
             Ok(())

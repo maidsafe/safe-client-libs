@@ -666,6 +666,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::retry_loop_for_pattern;
     use crate::utils::test_utils::{create_test_client, gen_ed_keypair};
     use anyhow::{anyhow, bail, Result};
     use sn_data_types::{MapAction, MapKind, Token};
@@ -1171,8 +1172,9 @@ mod tests {
         let new_balance = client.get_balance().await?;
 
         // make sure we have _some_ balance
-        assert_ne!(balance_before_delete, Token::from_str("0")?);
-        assert_ne!(balance_before_delete, new_balance);
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal != Token::from_str("0")?);
+        // and its not the same as before
+        let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal != balance_before_delete);
 
         Ok(())
     }

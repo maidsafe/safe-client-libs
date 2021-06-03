@@ -61,6 +61,20 @@ macro_rules! retry_loop {
 
 #[cfg(test)]
 #[macro_export]
+/// Helper for tests to retry an operation awaiting for a successful response result
+macro_rules! retry_loop_for_err {
+    ($async_func:expr) => {
+        loop {
+            match $async_func.await {
+                Ok(_) => tokio::time::sleep(std::time::Duration::from_millis(200)).await,
+                Err(err) => break err,
+            }
+        }
+    };
+}
+
+#[cfg(test)]
+#[macro_export]
 /// Helper for tests to retry an operation awaiting for a specific result
 macro_rules! retry_loop_for_pattern {
     ($async_func:expr, $pattern:pat $(if $cond:expr)?) => {
