@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.57.1](https://github.com/maidsafe/sn_client/compare/v0.57.0...v0.57.1) (2021-06-03)
+
+
+### Features
+
+* add payment buffer for storecost fluctuations ([a4eecfa](https://github.com/maidsafe/sn_client/commit/a4eecfa035dca6b6c39e131f36b5204be6e7c0c6))
+
 ## [0.57.0](https://github.com/maidsafe/sn_client/compare/v0.56.1...v0.57.0) (2021-06-02)
 
 
