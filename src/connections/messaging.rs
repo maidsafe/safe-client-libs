@@ -8,7 +8,7 @@
 
 use super::{QueryResult, Session};
 use crate::Error;
-use futures::future::{join_all, select_all};
+use futures::{future::join_all, stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{Blob, PrivateBlob, PublicBlob, PublicKey, TransferValidated};
@@ -29,6 +29,8 @@ use xor_name::XorName;
 const NUMBER_OF_RETRIES: usize = 3;
 // Number of Elders subset to send queries to
 const NUM_OF_ELDERS_SUBSET_FOR_QUERIES: usize = 3;
+
+const QUERY_TIMEOUT_SECONDS: u64 = 3 * 60;
 
 impl Session {
     /// Bootstrap to the network maintaining connections to several nodes.
@@ -281,8 +283,8 @@ impl Session {
         );
 
         // We send the same message to all Elders concurrently
-        let mut tasks = Vec::new();
-        let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
+        let mut tasks = FuturesUnordered::new();
+        let (sender, mut receiver) = channel::<QueryResponse>(7);
         let _ = pending_queries.lock().await.insert(msg_id, sender);
 
         // Set up response listeners
@@ -327,25 +329,29 @@ impl Session {
         // so we don't need more than one valid response to prevent from accepting invaid responses
         // from byzantine nodes, however for mutable data (non-Chunk esponses) we will
         // have to review the approach.
-        let mut todo = tasks;
         let mut responses_discarded: usize = 0;
 
         // Send all queries first
-        loop {
-            let (task_result, _, remaining_futures) = select_all(todo.into_iter()).await;
-            todo = remaining_futures;
-            if let Err(error) = task_result {
-                error!("Error spawning task to send query: {:?} ", error);
-                responses_discarded += 1;
-            }
-            if todo.is_empty() {
-                break;
+        while let Some(result) = tasks.next().await {
+            match result {
+                Err(err) => {
+                    error!("Error spawning task to send query: {:?} ", err);
+                    responses_discarded += 1;
+                }
+                Ok(Err(err)) => {
+                    error!("Error sending Query to elder: {:?} ", err);
+                    responses_discarded += 1;
+                }
+                _ => (),
             }
         }
 
         let response = loop {
-            match (receiver.recv().await, chunk_addr) {
-                (Some(Ok(QueryResponse::GetBlob(Ok(blob)))), Some(chunk_addr)) => {
+            match (
+                timeout(Duration::from_secs(QUERY_TIMEOUT_SECONDS), receiver.recv()).await,
+                chunk_addr,
+            ) {
+                (Ok(Some(QueryResponse::GetBlob(Ok(blob)))), Some(chunk_addr)) => {
                     // We are dealing with Chunk query responses, thus we validate its hash
                     // matches its xorname, if so, we don't need to await for more responses
                     debug!("Chunk QueryResponse received is: {:#?}", blob);
@@ -370,19 +376,26 @@ impl Session {
                         responses_discarded += 1;
                     }
                 }
-                (Some(Ok(response)), _) => {
-                    debug!("QueryResponse received is: {:#?}", response);
-                    break Some(response);
-                }
-                (Some(other), _) => {
+                (Ok(Some(other)), Some(_)) => {
                     warn!(
                         "Unexpected message in reply to query (retrying): {:?}",
                         other
                     );
                     responses_discarded += 1;
                 }
-                (None, _) => {
+                (Ok(Some(response)), _) => {
+                    debug!("QueryResponse received is: {:#?}", response);
+                    break Some(response);
+                }
+                (Ok(None), _) => {
                     debug!("QueryResponse channel closed.");
+                    break None;
+                }
+                (Err(error), _) => {
+                    error!(
+                        "Timeout while waiting for response to client request: {:?}",
+                        &error
+                    );
                     break None;
                 }
             }

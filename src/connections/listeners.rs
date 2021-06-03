@@ -250,7 +250,7 @@ impl Session {
                         "Sending response for query w/{} via channel.",
                         correlation_id
                     );
-                    let _ = sender.send(Ok(response)).await;
+                    let _ = sender.send(response).await;
                 } else {
                     trace!("No channel found for {:?}", correlation_id);
                 }

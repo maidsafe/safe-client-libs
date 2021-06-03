@@ -28,7 +28,7 @@ use xor_name::{Prefix, XorName};
 
 // Channel for sending result of transfer validation
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
-type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
+type QueryResponseSender = Sender<QueryResponse>;
 
 type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
 type PendingQueryResponses = Arc<Mutex<HashMap<MessageId, QueryResponseSender>>>;
