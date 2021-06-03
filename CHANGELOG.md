@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.57.2](https://github.com/maidsafe/sn_client/compare/v0.57.1...v0.57.2) (2021-06-03)
+
+
+### Bug Fixes
+
+* **query:** timeout when we don't get a response for a query ([9e6b782](https://github.com/maidsafe/sn_client/commit/9e6b7827f8cd054200a61887bc20c33e634b93bb))
+
 ### [0.57.1](https://github.com/maidsafe/sn_client/compare/v0.57.0...v0.57.1) (2021-06-03)
 
 
