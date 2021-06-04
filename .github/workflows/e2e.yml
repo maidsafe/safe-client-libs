@@ -76,6 +76,22 @@ jobs:
         shell: bash
         run: timeout 10m cargo test --release -- transfer --skip many_many && sleep 5
 
+      - name: Blob tests against local network
+        shell: bash
+        run: timeout 10m cargo test --release -- blob && sleep 5
+   
+      - name: Sequence tests against local network
+        shell: bash
+        run: timeout 10m cargo test --release -- seq && sleep 5
+
+      - name: Register tests against local network
+        shell: bash
+        run: timeout 10m cargo test --release -- register && sleep 5
+
+      - name: Map tests against local network
+        shell: bash
+        run: timeout 10m cargo test --release -- map && sleep 5
+
       - name: Run example app for Blob API against local network
         shell: bash
         run: cargo run --release --example blob
