@@ -376,13 +376,6 @@ impl Session {
                         responses_discarded += 1;
                     }
                 }
-                (Ok(Some(other)), Some(_)) => {
-                    warn!(
-                        "Unexpected message in reply to query (retrying): {:?}",
-                        other
-                    );
-                    responses_discarded += 1;
-                }
                 (Ok(Some(response)), _) => {
                     debug!("QueryResponse received is: {:#?}", response);
                     break Some(response);
