@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.57.3](https://github.com/maidsafe/sn_client/compare/v0.57.2...v0.57.3) (2021-06-04)
+
+
+### Bug Fixes
+
+* **messaging:** don't discard error responses for Blob Queries ([c81a35a](https://github.com/maidsafe/sn_client/commit/c81a35abe96de7b397a8cc3780e6870bd0a98c33))
+
 ### [0.57.2](https://github.com/maidsafe/sn_client/compare/v0.57.1...v0.57.2) (2021-06-03)
 
 
