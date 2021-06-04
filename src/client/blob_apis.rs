@@ -624,6 +624,20 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    pub async fn create_and_retrieve_1mb_public() -> Result<()> {
+        let size = 1024 * 1024;
+        gen_data_then_create_and_retrieve(size, true).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn create_and_retrieve_1mb_private() -> Result<()> {
+        let size = 1024 * 1024;
+        gen_data_then_create_and_retrieve(size, false).await?;
+        Ok(())
+    }
+
     // ----------------------------------------------------------------
     // 10mb (ie. more than 1 chunk)
     // ----------------------------------------------------------------
