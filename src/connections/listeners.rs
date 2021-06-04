@@ -240,11 +240,11 @@ impl Session {
                 correlation_id,
                 ..
             } => {
-                trace!(
-                    "Query response (correlation id: {}): {:?}",
-                    correlation_id,
-                    response
-                );
+                // trace!(
+                //     "Query response (correlation id: {}): {:?}",
+                //     correlation_id,
+                //     response
+                // );
 
                 // Note that this doesn't remove the sender from here since multiple
                 // responses corresponding to the same message ID might arrive.
@@ -302,6 +302,8 @@ impl Session {
                     let _ = sender
                         .send(Err(Error::from((error.clone(), correlation_id))))
                         .await;
+                } else {
+                    warn!("No transfer related direcltly to this CommandError. Probably this was sent in order to update Elders indiscriminently.")
                 }
 
                 let _ = self.incoming_err_sender.send(error).await;

@@ -17,7 +17,9 @@ use crate::{Client, Error};
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{DebitId, PublicKey, Token, TransferAgreementProof, TransferValidated};
-use sn_messaging::client::{ClientSigned, Cmd, DataCmd, Query, QueryResponse, TransferQuery};
+use sn_messaging::client::{
+    ClientSigned, Cmd, DataCmd, Query, QueryResponse, TransferCmd, TransferQuery,
+};
 use sn_transfers::{ActorEvent, TransferInitiated};
 use tokio::sync::mpsc::channel;
 
@@ -145,11 +147,39 @@ impl Client {
         let mut actor = self.transfer_actor.write().await;
 
         let received_history_len = history.len();
+        let our_history = actor.history();
         let our_history_len = actor.history().len();
+        // TODO:
+        // if we have more history than sender of this.
+        // Propogate transfer as we have it.
 
         if our_history_len > received_history_len {
             // we could be out of sync, lets send our_history to all elders.
-            debug!("Elder out of sync");
+            debug!(">> OUT OF SYNC");
+
+            /// we dont have msg/method to register credits atm...
+            // for credit in history.credits
+            // {
+            //     self.send_cmd(Cmd::Transfer(TransferCmd::RegisterTransfer(credit))).await;
+
+            // }
+            let received_debit_count = history.debits.len();
+
+            debug!(
+                ">>> received debit len {:?}, our debit len : {:?}",
+                received_debit_count,
+                our_history.debits.len()
+            );
+
+            let starting_debit = received_debit_count;
+            for (i, debit) in our_history.debits.iter().enumerate() {
+                debug!(">> iiiii {:?}", i);
+                // if i >= starting_debit {
+                debug!(">>Updating elders with some known debits");
+                self.send_cmd(Cmd::Transfer(TransferCmd::RegisterTransfer(debit.clone())))
+                    .await?;
+                // }
+            }
 
             return Err(Error::ElderHistoryOutofDate);
         }

@@ -430,7 +430,7 @@ mod tests {
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == desired_balance);
 
         let data = generate_random_vector::<u8>(10);
-        
+
         let _ = retry_loop_for_pattern!(client.store_public_blob(&data), Err(error) if *error.to_string() == Error::Transfer(TransfersError::InsufficientBalance).to_string());
 
         Ok(())
