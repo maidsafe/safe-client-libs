@@ -10,7 +10,7 @@ mod listeners;
 mod messaging;
 
 use crate::Error;
-use futures::lock::Mutex;
+use tokio::sync::Mutex;
 use log::{debug, trace};
 use qp2p::{Config as QuicP2pConfig, Endpoint, QuicP2p};
 use sn_data_types::{PublicKey, TransferValidated};

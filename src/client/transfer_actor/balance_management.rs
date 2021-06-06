@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn transfer_actor_can_send_many_many_transfers_and_thats_reflected_locally_and_on_network(
+    pub async fn transfer_actor_can_send_many_many_transfers(
     ) -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 

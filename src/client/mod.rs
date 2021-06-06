@@ -20,7 +20,7 @@ pub use self::transfer_actor::SafeTransferActor;
 
 use crate::{config_handler::Config, connections::Session, errors::Error};
 use crdts::Dot;
-use futures::lock::Mutex;
+use tokio::sync::Mutex;
 use log::{debug, info, trace, warn};
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
