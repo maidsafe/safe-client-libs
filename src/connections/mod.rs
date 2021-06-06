@@ -10,7 +10,6 @@ mod listeners;
 mod messaging;
 
 use crate::Error;
-use futures::lock::Mutex;
 use log::{debug, trace};
 use qp2p::{Config as QuicP2pConfig, Endpoint, QuicP2p};
 use sn_data_types::{PublicKey, TransferValidated};
@@ -24,6 +23,7 @@ use std::{
 };
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 use xor_name::{Prefix, XorName};
 
 // Channel for sending result of transfer validation

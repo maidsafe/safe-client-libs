@@ -45,14 +45,32 @@ impl Session {
 
         self.endpoint = Some(endpoint.clone());
         let mut bootstrap_nodes = endpoint
+            .clone()
             .bootstrap_nodes()
             .to_vec()
             .into_iter()
             .collect::<BTreeSet<_>>();
-        let connected_elders = self.connected_elders.clone();
+        // let connected_elders = self.connected_elders.clone();
+
+        let cloned_endpoint = endpoint.clone();
         let _ = tokio::spawn(async move {
             while let Some(disconnected_peer) = disconnections.next().await {
-                let _ = connected_elders.lock().await.remove(&disconnected_peer);
+                // we assume elders should have high connectivity.
+                // any problem there and they'd be voted off and we'd get an updated section
+                // so just keep trying to reconnect
+                warn!(
+                    "Disconnected from elder {:?}. Attempting to reconnect",
+                    disconnected_peer
+                );
+                match cloned_endpoint.connect_to(&disconnected_peer).await {
+                    Ok(_) => info!("Reconnected to {:?}", disconnected_peer),
+                    Err(error) => {
+                        warn!(
+                            "Could not reconnect to {:?}, error: {:?}",
+                            disconnected_peer, error
+                        );
+                    }
+                };
             }
         });
 
@@ -308,7 +326,7 @@ impl Session {
                         );
                         result = Err(Error::SendingQuery);
                     } else {
-                        trace!("ClientMsg with {:?} sent to {}", &msg_id, &socket);
+                        trace!("ClientMsg with id: {:?}, sent to {}", &msg_id, &socket);
                         result = Ok(());
                         break;
                     }
@@ -386,8 +404,8 @@ impl Session {
                 }
                 (Err(error), _) => {
                     error!(
-                        "Timeout while waiting for response to client request: {:?}",
-                        &error
+                        "Timeout while waiting for response to client request w/ id {:?}: {:?}",
+                        &msg_id, &error
                     );
                     break None;
                 }

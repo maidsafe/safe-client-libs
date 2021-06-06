@@ -229,6 +229,11 @@ impl Session {
 
     // Handle messages intended for client consumption (re: queries + commands)
     async fn handle_client_msg(&self, msg: ProcessMsg, src: SocketAddr) {
+        debug!(
+            "===> ClientMsg with id {:?} received from {:?}",
+            msg.id(),
+            src
+        );
         match msg {
             ProcessMsg::QueryResponse {
                 response,

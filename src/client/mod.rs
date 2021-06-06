@@ -20,7 +20,6 @@ pub use self::transfer_actor::SafeTransferActor;
 
 use crate::{config_handler::Config, connections::Session, errors::Error};
 use crdts::Dot;
-use futures::lock::Mutex;
 use log::{debug, info, trace, warn};
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
@@ -31,6 +30,7 @@ use std::{
     {collections::HashSet, net::SocketAddr, sync::Arc},
 };
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::Mutex;
 
 // Number of attempts to make when trying to bootstrap to the network
 const NUM_OF_BOOTSTRAPPING_ATTEMPTS: u8 = 1;
