@@ -70,6 +70,9 @@ pub enum Error {
     /// No transfer validation listener .
     #[error("No transfer validation listener")]
     NoTransferValidationListener,
+    /// Received transfer history was behind locally known history. Update commands have been sent to elders. Retry the operation shortly/
+    #[error("Received transfer history was behind locally known history. Update commands have been sent to elders. Retry the operation shortly/")]
+    ElderHistoryOutofDate,
     /// Unexpected message type receivied while joining.
     #[error("Unexpected message type receivied while joining: {0}")]
     UnexpectedMessageOnJoin(String),

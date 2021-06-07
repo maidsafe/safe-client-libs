@@ -196,10 +196,10 @@ impl Client {
 mod tests {
     use super::*;
     use crate::errors::TransfersError;
-    use crate::retry_loop_for_pattern;
     use crate::utils::{
         generate_random_vector, test_utils::calculate_new_balance, test_utils::create_test_client,
     };
+    use crate::{retry_loop, retry_loop_for_pattern};
     use anyhow::{anyhow, bail, Result};
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Token};
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn transfer_actor_can_send_many_many_transfers_and_thats_reflected_locally_and_on_network(
+    pub async fn transfer_actor_can_send_many_many_transfers(
     ) -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
@@ -260,9 +260,7 @@ mod tests {
 
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 token on creation from farming simulation minus 1
         // Assert locally
@@ -270,9 +268,7 @@ mod tests {
 
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("9")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("8")?);
@@ -280,9 +276,7 @@ mod tests {
         // Fetch balance from network and assert the same.
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("8")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("7")?);
@@ -290,9 +284,7 @@ mod tests {
         // Fetch balance from network and assert the same.
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("7")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("6")?);
@@ -353,9 +345,7 @@ mod tests {
         }
 
         // 11 here allows us to more easily debug repeat credits due w/ simulated payouts from each elder
-        let _ = client
-            .send_tokens(wallet1, Token::from_str("11.0")?)
-            .await?;
+        let _ = retry_loop!(client.send_tokens(wallet1, Token::from_str("11.0")?));
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
@@ -374,7 +364,8 @@ mod tests {
 
         // loop until correct
         while receiving_bal != target_tokens {
-            let _ = receiving_client.get_history().await?;
+            // this can fail if elders are out of sync, but we're looping here
+            let _ = receiving_client.get_history().await;
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             receiving_bal = receiving_client.get_balance().await?;
 
@@ -421,7 +412,7 @@ mod tests {
 
         let wallet1 = receiving_client.public_key();
 
-        let _ = client.send_tokens(wallet1, Token::from_str("10")?).await?;
+        let _ = retry_loop!(client.send_tokens(wallet1, Token::from_str("10")?));
 
         // Assert sender is debited.
         let desired_balance = Token::from_nano(0);

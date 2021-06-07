@@ -60,7 +60,15 @@ impl Client {
         trace!("Getting balance for {:?}", self.public_key());
 
         // we're a standard client grabbing our own key's balance
-        self.get_history().await?;
+        //
+        if let Err(error) = self.get_history().await {
+            match error {
+                Error::ElderHistoryOutofDate => {
+                    // do nothing, we know the truth
+                }
+                other_error => return Err(other_error),
+            }
+        };
         self.get_balance_from_network(None).await
     }
 
