@@ -139,6 +139,17 @@ impl Client {
         }?;
 
         let mut actor = self.transfer_actor.write().await;
+
+        let received_history_len = history.len();
+        let our_history_len = actor.history().len();
+
+        if our_history_len > received_history_len {
+            // we could be out of sync, lets send our_history to all elders.
+            debug!("Elder out of sync");
+
+            return Err(Error::ElderHistoryOutofDate);
+        }
+
         match actor.from_history(history) {
             Ok(synced_transfer_outcome) => {
                 if let Some(transfers) = synced_transfer_outcome {

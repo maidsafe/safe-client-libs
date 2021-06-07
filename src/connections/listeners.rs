@@ -266,12 +266,7 @@ impl Session {
                 ..
             } => {
                 if let Event::TransferValidated { event, .. } = event {
-                    if let Some(sender) = self
-                        .pending_transfers
-                        .read()
-                        .await
-                        .get(&correlation_id)
-                    {
+                    if let Some(sender) = self.pending_transfers.read().await.get(&correlation_id) {
                         let _ = sender.send(Ok(event)).await;
                     } else {
                         warn!(
@@ -299,10 +294,14 @@ impl Session {
                 let pending_transfers = self.pending_transfers.read().await;
 
                 if let Some(sender) = pending_transfers.get(&correlation_id) {
-                    info!("***************** A transfer is waiting on this cmd error response");
+                    warn!(
+                        "A transfer is waiting on this cmd error response {:?}",
+                        correlation_id
+                    );
 
-                    let _ = sender.send(Err(Error::from( (error.clone(), correlation_id)))).await;
-
+                    let _ = sender
+                        .send(Err(Error::from((error.clone(), correlation_id))))
+                        .await;
                 }
 
                 let _ = self.incoming_err_sender.send(error).await;
