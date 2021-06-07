@@ -430,14 +430,8 @@ mod tests {
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == desired_balance);
 
         let data = generate_random_vector::<u8>(10);
-        let res = client.store_public_blob(&data).await;
-        match res {
-            Err(Error::Transfer(TransfersError::InsufficientBalance)) => (),
-            res => bail!(
-                "Unexpected result in token transfer test, able to put data without balance: {:?}",
-                res
-            ),
-        };
+        
+        let _ = retry_loop_for_pattern!(client.store_public_blob(&data), Err(error) if *error.to_string() == Error::Transfer(TransfersError::InsufficientBalance).to_string());
 
         Ok(())
     }
