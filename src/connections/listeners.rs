@@ -134,7 +134,7 @@ impl Session {
                 trace!("GetSectionResponse::Redirect, reboostrapping with provided peers");
                 // Disconnect from peer that sent us the redirect, connect to the new elders provided and
                 // request the section info again.
-                self.disconnect_from_peers(vec![src])?;
+                self.disconnect_from_peers(vec![src]).await?;
                 let endpoint = self.endpoint()?.clone();
                 let new_elders_addrs: Vec<SocketAddr> =
                     elders.iter().map(|(_, addr)| *addr).collect();
@@ -219,7 +219,7 @@ impl Session {
                     }
                 })
                 .collect::<Vec<_>>();
-            self.disconnect_from_peers(old_elders)?;
+            self.disconnect_from_peers(old_elders).await?;
             self.qp2p.update_bootstrap_contacts(&updated_contacts);
             self.connect_to_elders().await
         } else {

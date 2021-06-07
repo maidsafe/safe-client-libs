@@ -443,9 +443,9 @@ impl Session {
         Ok(())
     }
 
-    pub(crate) fn disconnect_from_peers(&self, peers: Vec<SocketAddr>) -> Result<(), Error> {
+    pub(crate) async fn disconnect_from_peers(&self, peers: Vec<SocketAddr>) -> Result<(), Error> {
         for elder in peers {
-            self.endpoint()?.disconnect_from(&elder)?;
+            self.endpoint()?.disconnect_from(&elder).await?;
         }
 
         Ok(())
