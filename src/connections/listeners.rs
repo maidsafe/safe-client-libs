@@ -240,12 +240,6 @@ impl Session {
                 correlation_id,
                 ..
             } => {
-                // trace!(
-                //     "Query response (correlation id: {}): {:?}",
-                //     correlation_id,
-                //     response
-                // );
-
                 // Note that this doesn't remove the sender from here since multiple
                 // responses corresponding to the same message ID might arrive.
                 // Once we are satisfied with the response this is channel is discarded in
