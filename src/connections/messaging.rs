@@ -197,7 +197,6 @@ impl Session {
         );
         let endpoint = self.endpoint()?.clone();
         let elders: Vec<SocketAddr> = self.connected_elders.read().await.keys().cloned().collect();
-        let pending_transfers = self.pending_transfers.clone();
 
         let section_pk = self
             .section_key()
@@ -213,7 +212,9 @@ impl Session {
         });
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
-        let _ = pending_transfers.write().await.insert(msg_id, sender);
+        {
+            let _ = self.pending_transfers.write().await.insert(msg_id, sender);
+        }
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -303,7 +304,12 @@ impl Session {
         // We send the same message to all Elders concurrently
         let mut tasks = FuturesUnordered::new();
         let (sender, mut receiver) = channel::<QueryResponse>(7);
-        let _ = pending_queries.write().await.insert(msg_id, sender);
+
+        let mut pending_queries = pending_queries.write().await;
+        // let _ = pending_queries.write().await.insert(msg_id, sender);
+        let _ = pending_queries.insert(msg_id, sender);
+
+        drop(pending_queries);
 
         // Set up response listeners
         for socket in elders {
@@ -420,9 +426,9 @@ impl Session {
             msg_id, response
         );
 
-        // Remove the response sender
+        // // Remove the response sender
         trace!("Removing channel for {:?}", msg_id);
-        let _ = pending_queries.write().await.remove(&msg_id);
+        let _ = self.pending_queries.write().await.remove(&msg_id);
 
         response
             .map(|response| QueryResult { response, msg_id })

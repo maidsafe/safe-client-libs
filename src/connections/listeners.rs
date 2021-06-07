@@ -250,7 +250,7 @@ impl Session {
                 // responses corresponding to the same message ID might arrive.
                 // Once we are satisfied with the response this is channel is discarded in
                 // ConnectionManager::send_query
-                if let Some(sender) = self.pending_queries.write().await.get(&correlation_id) {
+                if let Some(sender) = self.pending_queries.read().await.get(&correlation_id) {
                     trace!(
                         "Sending response for query w/{} via channel.",
                         correlation_id
@@ -268,9 +268,9 @@ impl Session {
                 if let Event::TransferValidated { event, .. } = event {
                     if let Some(sender) = self
                         .pending_transfers
-                        .write()
+                        .read()
                         .await
-                        .get_mut(&correlation_id)
+                        .get(&correlation_id)
                     {
                         let _ = sender.send(Ok(event)).await;
                     } else {
@@ -292,7 +292,19 @@ impl Session {
                     "Cmd Error was received for Message w/ID: {:?}, sending on error channel",
                     correlation_id
                 );
+
                 trace!("Error received is: {:?}", error);
+
+                // if we're waiting on a transfer send the error over there.
+                let pending_transfers = self.pending_transfers.read().await;
+
+                if let Some(sender) = pending_transfers.get(&correlation_id) {
+                    info!("***************** A transfer is waiting on this cmd error response");
+
+                    let _ = sender.send(Err(Error::from( (error.clone(), correlation_id)))).await;
+
+                }
+
                 let _ = self.incoming_err_sender.send(error).await;
             }
             msg => {

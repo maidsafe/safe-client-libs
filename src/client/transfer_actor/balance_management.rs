@@ -6,10 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use sn_data_types::{PublicKey, SignedTransfer, Token, TransferAgreementProof};
+use sn_data_types::{ PublicKey, SignedTransfer, Token, TransferAgreementProof};
 use sn_messaging::client::{Cmd, Event, Query, QueryResponse, TransferCmd, TransferQuery};
 use sn_transfers::{ActorEvent, TransferInitiated};
-
+use crdts::Dot;
 use crate::{Client, Error};
 
 use log::{debug, info, trace};
@@ -133,36 +133,12 @@ impl Client {
     ) -> Result<(u64, PublicKey), Error> {
         info!("Sending token");
 
-        // first make sure our balance  history is up to date
+        // first make sure our balance  history is up to date with the network (and vica versa)
         self.get_history().await?;
 
-        info!(
-            "Our actor balance at send: {:?}",
-            self.transfer_actor.read().await.balance()
-        );
-
-        let initiated = self
-            .transfer_actor
-            .read()
-            .await
-            .transfer(amount, to, "".to_string())?
-            .ok_or(Error::NoTransferGenerated)?;
-
-        let signed_transfer = SignedTransfer {
-            debit: initiated.signed_debit,
-            credit: initiated.signed_credit,
-        };
-        let dot = signed_transfer.id();
-        let cmd = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
-
-        self.transfer_actor
-            .write()
-            .await
-            .apply(ActorEvent::TransferInitiated(TransferInitiated {
-                signed_debit: signed_transfer.debit.clone(),
-                signed_credit: signed_transfer.credit.clone(),
-            }))?;
-
+        let (cmd, signed_transfer, dot) = self.get_validation_cmd_and_transfer_from_actor(amount, to).await?;
+        
+        trace!("About to send tokens, signed transfer generate.");
         let transfer_proof: TransferAgreementProof =
             self.await_validation(cmd, signed_transfer.id()).await?;
 
@@ -186,6 +162,42 @@ impl Client {
 
         Ok((dot.counter, dot.actor))
     }
+
+    /// Apply debit to local actor and generate signed transfer
+    async fn get_validation_cmd_and_transfer_from_actor(&self, amount: Token, to: PublicKey) -> Result<(Cmd, SignedTransfer, Dot<PublicKey>), Error> {
+
+        // first make sure our balance  history is up to date
+        self.get_history().await?;
+
+        info!(
+            "Our actor balance at send: {:?}",
+            self.transfer_actor.read().await.balance()
+        );
+        
+        let mut actor = self
+        .transfer_actor
+        .write()
+        .await;
+
+        let initiated = actor
+            .transfer(amount, to, "".to_string())?
+            .ok_or(Error::NoTransferGenerated)?;
+
+        let signed_transfer = SignedTransfer {
+            debit: initiated.signed_debit,
+            credit: initiated.signed_credit,
+        };
+        let dot = signed_transfer.id();
+        let cmd = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
+
+        actor
+            .apply(ActorEvent::TransferInitiated(TransferInitiated {
+                signed_debit: signed_transfer.debit.clone(),
+                signed_credit: signed_transfer.credit.clone(),
+            }))?;
+
+        Ok((cmd, signed_transfer, dot))
+    }
 }
 
 // --------------------------------
@@ -196,7 +208,7 @@ impl Client {
 mod tests {
     use super::*;
     use crate::errors::TransfersError;
-    use crate::retry_loop_for_pattern;
+    use crate::{retry_loop_for_pattern, retry_loop};
     use crate::utils::{
         generate_random_vector, test_utils::calculate_new_balance, test_utils::create_test_client,
     };
@@ -260,9 +272,8 @@ mod tests {
 
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        retry_loop!(client
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?) );
 
         // Initial 10 token on creation from farming simulation minus 1
         // Assert locally
@@ -270,9 +281,8 @@ mod tests {
 
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("9")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        retry_loop!(client
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?) );
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("8")?);
@@ -280,9 +290,8 @@ mod tests {
         // Fetch balance from network and assert the same.
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("8")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        retry_loop!(client
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?) );
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("7")?);
@@ -290,9 +299,8 @@ mod tests {
         // Fetch balance from network and assert the same.
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("7")?);
 
-        let _ = client
-            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
-            .await?;
+        retry_loop!(client
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?) );
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("6")?);
@@ -353,9 +361,8 @@ mod tests {
         }
 
         // 11 here allows us to more easily debug repeat credits due w/ simulated payouts from each elder
-        let _ = client
-            .send_tokens(wallet1, Token::from_str("11.0")?)
-            .await?;
+        retry_loop!(client
+            .send_tokens(wallet1, Token::from_str("11.0")?) );
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
@@ -421,9 +428,10 @@ mod tests {
 
         let wallet1 = receiving_client.public_key();
 
-        let _ = client.send_tokens(wallet1, Token::from_str("10")?).await?;
+        retry_loop!(client
+            .send_tokens(wallet1, Token::from_str("1")?) );
 
-        // Assert sender is debited.
+            // Assert sender is debited.
         let desired_balance = Token::from_nano(0);
 
         // loop until correct
