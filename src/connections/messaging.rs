@@ -44,7 +44,8 @@ impl Session {
             self.qp2p.bootstrap().await?;
 
         self.endpoint = Some(endpoint.clone());
-        let mut bootstrap_nodes = endpoint.clone()
+        let mut bootstrap_nodes = endpoint
+            .clone()
             .bootstrap_nodes()
             .to_vec()
             .into_iter()
@@ -53,16 +54,21 @@ impl Session {
 
         let cloned_endpoint = endpoint.clone();
         let _ = tokio::spawn(async move {
-
             while let Some(disconnected_peer) = disconnections.next().await {
                 // we assume elders should have high connectivity.
                 // any problem there and they'd be voted off and we'd get an updated section
                 // so just keep trying to reconnect
-                warn!("Disconnected from elder {:?}. Attempting to reconnect", disconnected_peer);
+                warn!(
+                    "Disconnected from elder {:?}. Attempting to reconnect",
+                    disconnected_peer
+                );
                 match cloned_endpoint.connect_to(&disconnected_peer).await {
                     Ok(_) => info!("Reconnected to {:?}", disconnected_peer),
                     Err(error) => {
-                        warn!("Could not reconnect to {:?}, error: {:?}", disconnected_peer, error);
+                        warn!(
+                            "Could not reconnect to {:?}, error: {:?}",
+                            disconnected_peer, error
+                        );
                     }
                 };
             }
@@ -82,7 +88,7 @@ impl Session {
             )
             .await
             {
-                we_have_keyset = self.section_key_set.lock().await.is_some();
+                we_have_keyset = self.section_key_set.read().await.is_some();
             } else {
                 // Remove the unresponsive peer we boostrapped to and bootstrap again
                 let _ = bootstrap_nodes.remove(&bootstrapped_peer);
@@ -101,7 +107,7 @@ impl Session {
 
         debug!(
             "Successfully obtained the list of Elders to send all messages to: {:?}",
-            self.connected_elders.lock().await.keys()
+            self.connected_elders.read().await.keys()
         );
 
         Ok(())
@@ -112,7 +118,7 @@ impl Session {
         let msg_id = MessageId::new();
         let endpoint = self.endpoint()?.clone();
 
-        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.read().await.keys().cloned().collect();
         debug!(
             "Sending command w/id {:?}, to {} Elders",
             msg_id,
@@ -190,7 +196,7 @@ impl Session {
             cmd, msg_id
         );
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.read().await.keys().cloned().collect();
         let pending_transfers = self.pending_transfers.clone();
 
         let section_pk = self
@@ -207,7 +213,7 @@ impl Session {
         });
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
-        let _ = pending_transfers.lock().await.insert(msg_id, sender);
+        let _ = pending_transfers.write().await.insert(msg_id, sender);
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -271,7 +277,7 @@ impl Session {
         // connected Elders to the data we are querying
         let elders: Vec<SocketAddr> = self
             .connected_elders
-            .lock()
+            .read()
             .await
             .clone()
             .into_iter()
@@ -297,7 +303,7 @@ impl Session {
         // We send the same message to all Elders concurrently
         let mut tasks = FuturesUnordered::new();
         let (sender, mut receiver) = channel::<QueryResponse>(7);
-        let _ = pending_queries.lock().await.insert(msg_id, sender);
+        let _ = pending_queries.write().await.insert(msg_id, sender);
 
         // Set up response listeners
         for socket in elders {
@@ -399,8 +405,7 @@ impl Session {
                 (Err(error), _) => {
                     error!(
                         "Timeout while waiting for response to client request w/ id {:?}: {:?}",
-                        &msg_id,
-                        &error
+                        &msg_id, &error
                     );
                     break None;
                 }
@@ -417,7 +422,7 @@ impl Session {
 
         // Remove the response sender
         trace!("Removing channel for {:?}", msg_id);
-        let _ = pending_queries.lock().await.remove(&msg_id);
+        let _ = pending_queries.write().await.remove(&msg_id);
 
         response
             .map(|response| QueryResult { response, msg_id })
@@ -476,12 +481,12 @@ impl Session {
             warn!("Not attempted to connect, insufficient elders yet known");
         }
 
-        let new_elders = self.all_known_elders.lock().await.clone();
+        let new_elders = self.all_known_elders.read().await.clone();
         let peers_len = new_elders.len();
 
         trace!("We now know our {} Elders.", peers_len);
         {
-            let mut session_elders = self.connected_elders.lock().await;
+            let mut session_elders = self.connected_elders.write().await;
             *session_elders = new_elders;
         }
 

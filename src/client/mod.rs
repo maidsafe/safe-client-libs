@@ -20,7 +20,6 @@ pub use self::transfer_actor::SafeTransferActor;
 
 use crate::{config_handler::Config, connections::Session, errors::Error};
 use crdts::Dot;
-use tokio::sync::Mutex;
 use log::{debug, info, trace, warn};
 use rand::rngs::OsRng;
 use sn_data_types::{Keypair, PublicKey, SectionElders, Token};
@@ -31,6 +30,7 @@ use std::{
     {collections::HashSet, net::SocketAddr, sync::Arc},
 };
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::{Mutex, RwLock};
 
 // Number of attempts to make when trying to bootstrap to the network
 const NUM_OF_BOOTSTRAPPING_ATTEMPTS: u8 = 1;
@@ -39,7 +39,7 @@ const NUM_OF_BOOTSTRAPPING_ATTEMPTS: u8 = 1;
 #[derive(Clone)]
 pub struct Client {
     keypair: Keypair,
-    transfer_actor: Arc<Mutex<SafeTransferActor<Keypair>>>,
+    transfer_actor: Arc<RwLock<SafeTransferActor<Keypair>>>,
     simulated_farming_payout_dot: Dot<PublicKey>,
     incoming_errors: Arc<Mutex<Receiver<CmdError>>>,
     session: Session,
@@ -117,7 +117,7 @@ impl Client {
 
         let elder_pk_set = session
             .section_key_set
-            .lock()
+            .read()
             .await
             .clone()
             .ok_or(Error::NotBootstrapped)?;
@@ -131,7 +131,7 @@ impl Client {
             key_set: elder_pk_set,
         };
 
-        let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(keypair.clone(), elders)));
+        let transfer_actor = Arc::new(RwLock::new(SafeTransferActor::new(keypair.clone(), elders)));
 
         let mut client = Self {
             keypair,

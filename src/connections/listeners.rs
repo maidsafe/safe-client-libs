@@ -28,7 +28,7 @@ impl Session {
     pub async fn remove_pending_transfer_sender(&self, msg_id: &MessageId) -> Result<(), Error> {
         let pending_transfers = self.pending_transfers.clone();
         debug!("Pending transfers at this point: {:?}", pending_transfers);
-        let mut listeners = pending_transfers.lock().await;
+        let mut listeners = pending_transfers.write().await;
         let _ = listeners
             .remove(msg_id)
             .ok_or(Error::NoTransferValidationListener)?;
@@ -168,7 +168,7 @@ impl Session {
 
     // Apply updated info to a network session, and trigger connections
     async fn update_session_info(&mut self, info: &SectionInfo) -> Result<(), Error> {
-        let original_known_elders = self.all_known_elders.lock().await.clone();
+        let original_known_elders = self.all_known_elders.read().await.clone();
 
         // Change this once sn_messaging is updated
         let received_elders = info
@@ -185,7 +185,7 @@ impl Session {
 
         {
             // Update session key set
-            let mut keyset = self.section_key_set.lock().await;
+            let mut keyset = self.section_key_set.write().await;
             if *keyset == Some(info.pk_set.clone()) {
                 trace!("We have previously received the key set already.");
                 return Ok(());
@@ -195,13 +195,13 @@ impl Session {
 
         {
             // update section prefix
-            let mut prefix = self.section_prefix.lock().await;
+            let mut prefix = self.section_prefix.write().await;
             *prefix = Some(info.prefix);
         }
 
         {
             // Update session elders
-            let mut session_elders = self.all_known_elders.lock().await;
+            let mut session_elders = self.all_known_elders.write().await;
             *session_elders = received_elders.clone();
         }
 
@@ -229,7 +229,11 @@ impl Session {
 
     // Handle messages intended for client consumption (re: queries + commands)
     async fn handle_client_msg(&self, msg: ProcessMsg, src: SocketAddr) {
-        debug!("===> ClientMsg with id {:?} received from {:?}", msg.id(), src);
+        debug!(
+            "===> ClientMsg with id {:?} received from {:?}",
+            msg.id(),
+            src
+        );
         match msg {
             ProcessMsg::QueryResponse {
                 response,
@@ -246,7 +250,7 @@ impl Session {
                 // responses corresponding to the same message ID might arrive.
                 // Once we are satisfied with the response this is channel is discarded in
                 // ConnectionManager::send_query
-                if let Some(sender) = self.pending_queries.lock().await.get(&correlation_id) {
+                if let Some(sender) = self.pending_queries.write().await.get(&correlation_id) {
                     trace!(
                         "Sending response for query w/{} via channel.",
                         correlation_id
@@ -262,8 +266,11 @@ impl Session {
                 ..
             } => {
                 if let Event::TransferValidated { event, .. } = event {
-                    if let Some(sender) =
-                        self.pending_transfers.lock().await.get_mut(&correlation_id)
+                    if let Some(sender) = self
+                        .pending_transfers
+                        .write()
+                        .await
+                        .get_mut(&correlation_id)
                     {
                         let _ = sender.send(Ok(event)).await;
                     } else {

@@ -18,7 +18,7 @@ impl Client {
         &self,
         debit_proof: TransferAgreementProof,
     ) -> Result<(), Error> {
-        let mut actor = self.transfer_actor.lock().await;
+        let mut actor = self.transfer_actor.write().await;
         // First register with local actor, then reply.
         let register_event = actor
             .register(debit_proof.clone())?

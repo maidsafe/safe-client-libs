@@ -10,7 +10,6 @@ mod listeners;
 mod messaging;
 
 use crate::Error;
-use tokio::sync::Mutex;
 use log::{debug, trace};
 use qp2p::{Config as QuicP2pConfig, Endpoint, QuicP2p};
 use sn_data_types::{PublicKey, TransferValidated};
@@ -24,14 +23,15 @@ use std::{
 };
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::{Mutex, RwLock};
 use xor_name::{Prefix, XorName};
 
 // Channel for sending result of transfer validation
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<QueryResponse>;
 
-type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
-type PendingQueryResponses = Arc<Mutex<HashMap<MessageId, QueryResponseSender>>>;
+type PendingTransferValidations = Arc<RwLock<HashMap<MessageId, TransferValidationSender>>>;
+type PendingQueryResponses = Arc<RwLock<HashMap<MessageId, QueryResponseSender>>>;
 
 pub(crate) struct QueryResult {
     pub response: QueryResponse,
@@ -46,11 +46,11 @@ pub struct Session {
     incoming_err_sender: Sender<CmdError>,
     endpoint: Option<Endpoint>,
     /// elders we've managed to connect to
-    connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
+    connected_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
     /// all elders we know about from SectionInfo messages
-    all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
-    pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
-    section_prefix: Arc<Mutex<Option<Prefix>>>,
+    all_known_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
+    pub section_key_set: Arc<RwLock<Option<PublicKeySet>>>,
+    section_prefix: Arc<RwLock<Option<Prefix>>>,
     is_connecting_to_new_elders: bool,
 }
 
@@ -61,14 +61,14 @@ impl Session {
         let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), true)?;
         Ok(Self {
             qp2p,
-            pending_queries: Arc::new(Mutex::new(HashMap::default())),
-            pending_transfers: Arc::new(Mutex::new(HashMap::default())),
+            pending_queries: Arc::new(RwLock::new(HashMap::default())),
+            pending_transfers: Arc::new(RwLock::new(HashMap::default())),
             incoming_err_sender: err_sender,
             endpoint: None,
-            section_key_set: Arc::new(Mutex::new(None)),
-            connected_elders: Arc::new(Mutex::new(Default::default())),
-            all_known_elders: Arc::new(Mutex::new(Default::default())),
-            section_prefix: Arc::new(Mutex::new(None)),
+            section_key_set: Arc::new(RwLock::new(None)),
+            connected_elders: Arc::new(RwLock::new(Default::default())),
+            all_known_elders: Arc::new(RwLock::new(Default::default())),
+            section_prefix: Arc::new(RwLock::new(None)),
             is_connecting_to_new_elders: false,
         })
     }
@@ -79,13 +79,13 @@ impl Session {
     }
 
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
-        let elders = self.connected_elders.lock().await;
+        let elders = self.connected_elders.read().await;
         elders.values().cloned().collect()
     }
 
     /// Get the elders count of our section elders as provided by SectionInfo
     pub async fn known_elders_count(&self) -> usize {
-        self.all_known_elders.lock().await.len()
+        self.all_known_elders.read().await.len()
     }
 
     pub fn endpoint(&self) -> Result<&Endpoint, Error> {
@@ -99,7 +99,7 @@ impl Session {
     }
 
     pub async fn section_key(&self) -> Result<PublicKey, Error> {
-        let keys = self.section_key_set.lock().await.clone();
+        let keys = self.section_key_set.read().await.clone();
 
         match keys.borrow() {
             Some(section_key_set) => Ok(PublicKey::Bls(section_key_set.public_key())),
@@ -112,6 +112,6 @@ impl Session {
 
     /// Get section's prefix
     pub async fn section_prefix(&self) -> Option<Prefix> {
-        *self.section_prefix.lock().await
+        *self.section_prefix.read().await
     }
 }
