@@ -250,7 +250,6 @@ impl Session {
         let data_name = query.dst_address();
 
         let endpoint = self.endpoint()?.clone();
-        let pending_queries = self.pending_queries.clone();
 
         let chunk_addr = if let Query::Data(DataQuery::Blob(BlobRead::Get(address))) = query {
             Some(address)
@@ -305,8 +304,7 @@ impl Session {
         let mut tasks = FuturesUnordered::new();
         let (sender, mut receiver) = channel::<QueryResponse>(7);
 
-        let mut pending_queries = pending_queries.write().await;
-        // let _ = pending_queries.write().await.insert(msg_id, sender);
+        let mut pending_queries = self.pending_queries.write().await;
         let _ = pending_queries.insert(msg_id, sender);
 
         drop(pending_queries);

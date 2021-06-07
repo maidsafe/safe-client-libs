@@ -216,27 +216,15 @@ impl Client {
         // Compute number of bytes
         let bytes = serialize(cmd)?.len() as u64;
 
-        self.get_history().await?;
-
         let (bytes, cost_of_put, section_key) = self.get_store_cost(bytes).await?;
         info!(
             "Current store cost for {} bytes reported by section {}: {}",
             bytes, section_key, cost_of_put
         );
 
-        let initiated = self
-            .transfer_actor
-            .read()
-            .await
-            .transfer(cost_of_put, section_key, "".to_string())?
-            .ok_or(Error::NoTransferEventsForLocalActor)?;
-
-        let signed_transfer = SignedTransfer {
-            debit: initiated.signed_debit,
-            credit: initiated.signed_credit,
-        };
-
-        let cmd = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
+        let (cmd, signed_transfer, _) = self
+            .get_validation_cmd_and_transfer_from_actor(cost_of_put, section_key)
+            .await?;
 
         debug!("Transfer to be sent: {:?}", &signed_transfer);
 

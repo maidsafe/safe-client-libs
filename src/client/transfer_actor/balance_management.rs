@@ -133,9 +133,6 @@ impl Client {
     ) -> Result<(u64, PublicKey), Error> {
         info!("Sending token");
 
-        // first make sure our balance  history is up to date with the network (and vica versa)
-        self.get_history().await?;
-
         let (cmd, signed_transfer, dot) = self
             .get_validation_cmd_and_transfer_from_actor(amount, to)
             .await?;
@@ -166,7 +163,7 @@ impl Client {
     }
 
     /// Apply debit to local actor and generate signed transfer
-    async fn get_validation_cmd_and_transfer_from_actor(
+    pub(crate) async fn get_validation_cmd_and_transfer_from_actor(
         &self,
         amount: Token,
         to: PublicKey,
@@ -423,7 +420,7 @@ mod tests {
 
         let wallet1 = receiving_client.public_key();
 
-        retry_loop!(client.send_tokens(wallet1, Token::from_str("1")?));
+        retry_loop!(client.send_tokens(wallet1, Token::from_str("10")?));
 
         // Assert sender is debited.
         let desired_balance = Token::from_nano(0);
