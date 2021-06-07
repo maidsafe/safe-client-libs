@@ -16,12 +16,8 @@ mod write_apis;
 use crate::{Client, Error};
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
-use sn_data_types::{
-    DebitId, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
-};
-use sn_messaging::client::{
-    ClientSigned, Cmd, DataCmd, Query, QueryResponse, TransferCmd, TransferQuery,
-};
+use sn_data_types::{DebitId, PublicKey, Token, TransferAgreementProof, TransferValidated};
+use sn_messaging::client::{ClientSigned, Cmd, DataCmd, Query, QueryResponse, TransferQuery};
 use sn_transfers::{ActorEvent, TransferInitiated};
 use tokio::sync::mpsc::channel;
 
@@ -60,7 +56,15 @@ impl Client {
         trace!("Getting balance for {:?}", self.public_key());
 
         // we're a standard client grabbing our own key's balance
-        self.get_history().await?;
+        //
+        if let Err(error) = self.get_history().await {
+            match error {
+                Error::ElderHistoryOutofDate => {
+                    // do nothing, we know the truth
+                }
+                other_error => return Err(other_error),
+            }
+        };
         self.get_balance_from_network(None).await
     }
 

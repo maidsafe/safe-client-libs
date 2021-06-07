@@ -269,7 +269,7 @@ mod tests {
 
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("10")?);
 
-        retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 token on creation from farming simulation minus 1
         // Assert locally
@@ -277,7 +277,7 @@ mod tests {
 
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("9")?);
 
-        retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("8")?);
@@ -285,7 +285,7 @@ mod tests {
         // Fetch balance from network and assert the same.
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("8")?);
 
-        retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("7")?);
@@ -293,7 +293,7 @@ mod tests {
         // Fetch balance from network and assert the same.
         let _ = retry_loop_for_pattern!( client.get_balance(), Ok(bal) if *bal == Token::from_str("7")?);
 
-        retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
+        let _ = retry_loop!(client.send_tokens(keypair2.public_key(), Token::from_str("1")?));
 
         // Initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Token::from_str("6")?);
@@ -354,7 +354,7 @@ mod tests {
         }
 
         // 11 here allows us to more easily debug repeat credits due w/ simulated payouts from each elder
-        retry_loop!(client.send_tokens(wallet1, Token::from_str("11.0")?));
+        let _ = retry_loop!(client.send_tokens(wallet1, Token::from_str("11.0")?));
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
@@ -373,7 +373,8 @@ mod tests {
 
         // loop until correct
         while receiving_bal != target_tokens {
-            let _ = receiving_client.get_history().await?;
+            // this can fail if elders are out of sync, but we're looping here
+            let _ = receiving_client.get_history().await;
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             receiving_bal = receiving_client.get_balance().await?;
 
@@ -420,7 +421,7 @@ mod tests {
 
         let wallet1 = receiving_client.public_key();
 
-        retry_loop!(client.send_tokens(wallet1, Token::from_str("10")?));
+        let _ = retry_loop!(client.send_tokens(wallet1, Token::from_str("10")?));
 
         // Assert sender is debited.
         let desired_balance = Token::from_nano(0);
