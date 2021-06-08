@@ -304,10 +304,7 @@ impl Session {
         let mut tasks = FuturesUnordered::new();
         let (sender, mut receiver) = channel::<QueryResponse>(7);
 
-        let mut pending_queries = self.pending_queries.write().await;
-        let _ = pending_queries.insert(msg_id, sender);
-
-        drop(pending_queries);
+        let _ = self.pending_queries.write().await.insert(msg_id, sender);
 
         // Set up response listeners
         for socket in elders {
