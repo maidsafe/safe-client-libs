@@ -433,7 +433,7 @@ impl Session {
         // FIXME: we don't know our section PK. We must supply a pk for now we do a random one...
         let random_section_pk = threshold_crypto::SecretKey::random().public_key();
 
-        let msg = SectionInfoMsg::GetSectionQuery(client_pk)
+        let msg = SectionInfoMsg::GetSectionQuery{ public_key: client_pk, is_node: false }
             .serialize(dest_section_name, random_section_pk)?;
 
         self.endpoint()?
