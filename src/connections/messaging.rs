@@ -11,6 +11,7 @@ use crate::Error;
 use futures::{future::join_all, stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
+use rand::seq::SliceRandom;
 use sn_data_types::{Blob, PrivateBlob, PublicBlob, PublicKey, TransferValidated};
 use sn_messaging::{
     client::{BlobRead, ClientMsg, ClientSigned, Cmd, DataQuery, ProcessMsg, Query, QueryResponse},
@@ -228,8 +229,6 @@ impl Session {
         query: Query,
         client_signed: ClientSigned,
     ) -> Result<QueryResult, Error> {
-        let data_name = query.dst_address();
-
         let endpoint = self.endpoint()?.clone();
         let pending_queries = self.pending_queries.clone();
 
@@ -257,16 +256,18 @@ impl Session {
 
         // We select the NUM_OF_ELDERS_SUBSET_FOR_QUERIES closest
         // connected Elders to the data we are querying
-        let elders: Vec<SocketAddr> = self
+        let mut elders: Vec<SocketAddr> = self
             .connected_elders
             .lock()
             .await
-            .clone()
+            .iter()
+            .map(|(addr, _)| *addr)
+            .collect_vec();
+        elders.shuffle(&mut rand::thread_rng());
+        let elders = elders
             .into_iter()
-            .sorted_by(|(_, lhs_name), (_, rhs_name)| data_name.cmp_distance(&lhs_name, &rhs_name))
             .take(NUM_OF_ELDERS_SUBSET_FOR_QUERIES)
-            .map(|(addr, _)| addr)
-            .collect();
+            .collect_vec();
 
         let elders_len = elders.len();
         if elders_len < NUM_OF_ELDERS_SUBSET_FOR_QUERIES {
@@ -433,8 +434,11 @@ impl Session {
         // FIXME: we don't know our section PK. We must supply a pk for now we do a random one...
         let random_section_pk = threshold_crypto::SecretKey::random().public_key();
 
-        let msg = SectionInfoMsg::GetSectionQuery(client_pk)
-            .serialize(dest_section_name, random_section_pk)?;
+        let msg = SectionInfoMsg::GetSectionQuery {
+            public_key: client_pk,
+            is_node: false,
+        }
+        .serialize(dest_section_name, random_section_pk)?;
 
         self.endpoint()?
             .send_message(msg, bootstrapped_peer)
