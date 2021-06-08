@@ -158,12 +158,14 @@ impl Session {
                 }
                 Ok(())
             }
-            SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(_)) 
+            SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(_))
             | SectionInfoMsg::GetSectionResponse(GetSectionResponse::NodeNotReachable)
-            | SectionInfoMsg::GetSectionQuery{..} => Err(Error::UnexpectedMessageOnJoin(format!(
-                "bootstrapping failed since an invalid response ({:?}) was received",
-                msg
-            ))),
+            | SectionInfoMsg::GetSectionQuery { .. } => {
+                Err(Error::UnexpectedMessageOnJoin(format!(
+                    "bootstrapping failed since an invalid response ({:?}) was received",
+                    msg
+                )))
+            }
         }
     }
 

@@ -252,8 +252,7 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn transfer_actor_can_send_many_many_transfers(
-    ) -> Result<()> {
+    pub async fn transfer_actor_can_send_many_many_transfers() -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
         let client = create_test_client().await?;
