@@ -13,10 +13,8 @@ use qp2p::IncomingMessages;
 use sn_data_types::PublicKey;
 use sn_messaging::{
     client::{ClientMsg, Event, ProcessMsg},
-    section_info::{
-        Error as SectionInfoError, GetSectionResponse, Message as SectionInfoMsg, SectionInfo,
-    },
-    MessageId, MessageType, WireMsg,
+    section_info::{Error as SectionInfoError, GetSectionResponse, SectionInfoMsg},
+    MessageId, MessageType, SectionAuthorityProvider, WireMsg,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -124,20 +122,20 @@ impl Session {
                 Ok(())
             }
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(
-                SectionInfoError::TargetSectionInfoOutdated(info),
+                SectionInfoError::TargetSectionInfoOutdated(sap),
             )) => {
-                debug!("Updated section info received: {:?}", info);
-                self.update_session_info(info).await?;
+                debug!("Updated section info received: {:?}", sap);
+                self.update_session_info(sap).await?;
                 Ok(())
             }
-            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(elders)) => {
+            SectionInfoMsg::GetSectionResponse(GetSectionResponse::Redirect(sap)) => {
                 trace!("GetSectionResponse::Redirect, reboostrapping with provided peers");
                 // Disconnect from peer that sent us the redirect, connect to the new elders provided and
                 // request the section info again.
                 self.disconnect_from_peers(vec![src]).await?;
                 let endpoint = self.endpoint()?.clone();
                 let new_elders_addrs: Vec<SocketAddr> =
-                    elders.iter().map(|(_, addr)| *addr).collect();
+                    sap.elders.iter().map(|(_, addr)| *addr).collect();
                 self.qp2p
                     .update_bootstrap_contacts(new_elders_addrs.as_slice());
                 let boostrapped_peer = self
@@ -152,14 +150,13 @@ impl Session {
             SectionInfoMsg::SectionInfoUpdate(update) => {
                 let correlation_id = update.correlation_id;
                 error!("MessageId {:?} was interrupted due to infrastructure updates. This will most likely need to be sent again. Update was : {:?}", correlation_id, update);
-                if let SectionInfoError::TargetSectionInfoOutdated(info) = update.clone().error {
-                    trace!("Updated network info: ({:?})", info);
-                    self.update_session_info(&info).await?;
+                if let SectionInfoError::TargetSectionInfoOutdated(sap) = update.clone().error {
+                    trace!("Updated network info: ({:?})", sap);
+                    self.update_session_info(&sap).await?;
                 }
                 Ok(())
             }
             SectionInfoMsg::GetSectionResponse(GetSectionResponse::SectionInfoUpdate(_))
-            | SectionInfoMsg::GetSectionResponse(GetSectionResponse::NodeNotReachable)
             | SectionInfoMsg::GetSectionQuery { .. } => {
                 Err(Error::UnexpectedMessageOnJoin(format!(
                     "bootstrapping failed since an invalid response ({:?}) was received",
@@ -170,11 +167,11 @@ impl Session {
     }
 
     // Apply updated info to a network session, and trigger connections
-    async fn update_session_info(&mut self, info: &SectionInfo) -> Result<(), Error> {
+    async fn update_session_info(&mut self, sap: &SectionAuthorityProvider) -> Result<(), Error> {
         let original_known_elders = self.all_known_elders.lock().await.clone();
 
         // Change this once sn_messaging is updated
-        let received_elders = info
+        let received_elders = sap
             .elders
             .iter()
             .map(|(name, addr)| (*addr, *name))
@@ -189,17 +186,17 @@ impl Session {
         {
             // Update session key set
             let mut keyset = self.section_key_set.lock().await;
-            if *keyset == Some(info.pk_set.clone()) {
+            if *keyset == Some(sap.public_key_set.clone()) {
                 trace!("We have previously received the key set already.");
                 return Ok(());
             }
-            *keyset = Some(info.pk_set.clone());
+            *keyset = Some(sap.public_key_set.clone());
         }
 
         {
             // update section prefix
             let mut prefix = self.section_prefix.lock().await;
-            *prefix = Some(info.prefix);
+            *prefix = Some(sap.prefix);
         }
 
         {

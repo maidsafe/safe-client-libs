@@ -14,7 +14,7 @@ use log::{debug, error, info, trace, warn};
 use sn_data_types::{Blob, PrivateBlob, PublicBlob, PublicKey, TransferValidated};
 use sn_messaging::{
     client::{BlobRead, ClientMsg, ClientSigned, Cmd, DataQuery, ProcessMsg, Query, QueryResponse},
-    section_info::Message as SectionInfoMsg,
+    section_info::SectionInfoMsg,
     MessageId,
 };
 use std::{collections::BTreeSet, net::SocketAddr, time::Duration};
@@ -433,11 +433,8 @@ impl Session {
         // FIXME: we don't know our section PK. We must supply a pk for now we do a random one...
         let random_section_pk = threshold_crypto::SecretKey::random().public_key();
 
-        let msg = SectionInfoMsg::GetSectionQuery {
-            public_key: client_pk,
-            is_node: false,
-        }
-        .serialize(dest_section_name, random_section_pk)?;
+        let msg = SectionInfoMsg::GetSectionQuery(client_pk)
+            .serialize(dest_section_name, random_section_pk)?;
 
         self.endpoint()?
             .send_message(msg, bootstrapped_peer)
