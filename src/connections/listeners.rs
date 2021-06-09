@@ -238,73 +238,68 @@ impl Session {
         let transfers = self.pending_transfers.clone();
         let error_sender = self.incoming_err_sender.clone();
         let _ = tokio::spawn(async move {
-
             debug!("Thread spawned to handle this client message");
             match msg {
-            ProcessMsg::QueryResponse {
-                response,
-                correlation_id,
-                ..
-            } => {
-                debug!(
-                    "Query response (relating to msgid: {})",
-                    correlation_id
-                );
+                ProcessMsg::QueryResponse {
+                    response,
+                    correlation_id,
+                    ..
+                } => {
+                    debug!("Query response (relating to msgid: {})", correlation_id);
 
-                trace!("The received query response is {:?}", response);
-    
-                // Note that this doesn't remove the sender from here since multiple
-                // responses corresponding to the same message ID might arrive.
-                // Once we are satisfied with the response this is channel is discarded in
-                // ConnectionManager::send_query
-                if let Some(sender) = &queries.read().await.get(&correlation_id) {
-                    trace!(
-                        "Sending response for query w/{} via channel.",
-                        correlation_id
-                    );
-                    let _ = sender.send(response).await;
-                } else {
-                    trace!("No channel found for {:?}", correlation_id);
-                }
-            }
-            ProcessMsg::Event {
-                event,
-                correlation_id,
-                ..
-            } => {
-                debug!("Event received to be processed");
-                if let Event::TransferValidated { event, .. } = event {
-                    let transfers = transfers.read().await;
-                    let sender = transfers.get(&correlation_id);
-                    if let Some(sender) = sender
-                    {
-                        let _ = sender.send(Ok(event)).await;
+                    trace!("The received query response is {:?}", response);
+
+                    // Note that this doesn't remove the sender from here since multiple
+                    // responses corresponding to the same message ID might arrive.
+                    // Once we are satisfied with the response this is channel is discarded in
+                    // ConnectionManager::send_query
+                    if let Some(sender) = &queries.read().await.get(&correlation_id) {
+                        trace!(
+                            "Sending response for query w/{} via channel.",
+                            correlation_id
+                        );
+                        let _ = sender.send(response).await;
                     } else {
-                        warn!(
+                        trace!("No channel found for {:?}", correlation_id);
+                    }
+                }
+                ProcessMsg::Event {
+                    event,
+                    correlation_id,
+                    ..
+                } => {
+                    debug!("Event received to be processed");
+                    if let Event::TransferValidated { event, .. } = event {
+                        let transfers = transfers.read().await;
+                        let sender = transfers.get(&correlation_id);
+                        if let Some(sender) = sender {
+                            let _ = sender.send(Ok(event)).await;
+                        } else {
+                            warn!(
                             "No transfer validation listener found for elder {:?} and message {:?}",
                             src, correlation_id
                         );
-                        warn!("It may be that this transfer is complete and the listener cleaned up already.");
-                        trace!("Event received was {:?}", event);
+                            warn!("It may be that this transfer is complete and the listener cleaned up already.");
+                            trace!("Event received was {:?}", event);
+                        }
                     }
                 }
-            }
-            ProcessMsg::CmdError {
-                error,
-                correlation_id,
-                ..
-            } => {
-                debug!(
-                    "Cmd Error was received for Message w/ID: {:?}, sending on error channel",
-                    correlation_id
-                );
-                trace!("Error received is: {:?}", error);
-                let _ = error_sender.send(error).await;
-            }
-            msg => {
-                warn!("Ignoring unexpected message type received: {:?}", msg);
-            }
-        };
+                ProcessMsg::CmdError {
+                    error,
+                    correlation_id,
+                    ..
+                } => {
+                    debug!(
+                        "Cmd Error was received for Message w/ID: {:?}, sending on error channel",
+                        correlation_id
+                    );
+                    trace!("Error received is: {:?}", error);
+                    let _ = error_sender.send(error).await;
+                }
+                msg => {
+                    warn!("Ignoring unexpected message type received: {:?}", msg);
+                }
+            };
         });
     }
 }

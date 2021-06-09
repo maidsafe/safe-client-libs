@@ -37,7 +37,7 @@ impl Client {
     /// ```
     pub async fn get_local_balance(&self) -> Token {
         info!("Retrieving actor's local balance.");
-        self.transfer_actor.lock().await.balance()
+        self.transfer_actor.read().await.balance()
     }
 
     /// Handle a validation event.
@@ -51,7 +51,7 @@ impl Client {
             Event::TransferValidated { event, .. } => event,
             _ => return Err(Error::UnexpectedTransferEvent(event)),
         };
-        let mut actor = self.transfer_actor.lock().await;
+        let mut actor = self.transfer_actor.write().await;
         let transfer_validation = match actor.receive(validation) {
             Ok(Some(validation)) => validation,
             Ok(None) => return Ok(None),
@@ -138,12 +138,12 @@ impl Client {
 
         info!(
             "Our actor balance at send: {:?}",
-            self.transfer_actor.lock().await.balance()
+            self.transfer_actor.read().await.balance()
         );
 
         let initiated = self
             .transfer_actor
-            .lock()
+            .read()
             .await
             .transfer(amount, to, "".to_string())?
             .ok_or(Error::NoTransferGenerated)?;
@@ -156,7 +156,7 @@ impl Client {
         let cmd = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
 
         self.transfer_actor
-            .lock()
+            .write()
             .await
             .apply(ActorEvent::TransferInitiated(TransferInitiated {
                 signed_debit: signed_transfer.debit.clone(),
@@ -176,7 +176,7 @@ impl Client {
 
         self.send_cmd(cmd).await?;
 
-        let mut actor = self.transfer_actor.lock().await;
+        let mut actor = self.transfer_actor.write().await;
         // First register with local actor, then reply.
         let register_event = actor
             .register(transfer_proof)?

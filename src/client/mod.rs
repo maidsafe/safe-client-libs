@@ -39,7 +39,7 @@ const NUM_OF_BOOTSTRAPPING_ATTEMPTS: u8 = 1;
 #[derive(Clone)]
 pub struct Client {
     keypair: Keypair,
-    transfer_actor: Arc<Mutex<SafeTransferActor<Keypair>>>,
+    transfer_actor: Arc<RwLock<SafeTransferActor<Keypair>>>,
     simulated_farming_payout_dot: Dot<PublicKey>,
     incoming_errors: Arc<Mutex<Receiver<CmdError>>>,
     session: Session,
@@ -131,7 +131,7 @@ impl Client {
             key_set: elder_pk_set,
         };
 
-        let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(keypair.clone(), elders)));
+        let transfer_actor = Arc::new(RwLock::new(SafeTransferActor::new(keypair.clone(), elders)));
 
         let mut client = Self {
             keypair,

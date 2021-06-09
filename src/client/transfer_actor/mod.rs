@@ -146,7 +146,7 @@ impl Client {
             _ => Err(Error::UnexpectedHistoryResponse(query_result.response)),
         }?;
 
-        let mut actor = self.transfer_actor.lock().await;
+        let mut actor = self.transfer_actor.write().await;
         match actor.from_history(history) {
             Ok(synced_transfer_outcome) => {
                 if let Some(transfers) = synced_transfer_outcome {
@@ -223,7 +223,7 @@ impl Client {
 
         let initiated = self
             .transfer_actor
-            .lock()
+            .read()
             .await
             .transfer(cost_of_put, section_key, "".to_string())?
             .ok_or(Error::NoTransferEventsForLocalActor)?;
@@ -238,7 +238,7 @@ impl Client {
         debug!("Transfer to be sent: {:?}", &signed_transfer);
 
         self.transfer_actor
-            .lock()
+            .write()
             .await
             .apply(ActorEvent::TransferInitiated(TransferInitiated {
                 signed_debit: signed_transfer.debit.clone(),
@@ -283,7 +283,7 @@ impl Client {
                 Some(event) => match event {
                     Ok(transfer_validated) => {
                         response_count += 1;
-                        let mut actor = self.transfer_actor.lock().await;
+                        let mut actor = self.transfer_actor.write().await;
                         // pass the received validation in to our actor
                         match actor.receive(transfer_validated) {
                             Ok(result) => {

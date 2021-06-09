@@ -23,7 +23,7 @@ use std::{
 };
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use xor_name::{Prefix, XorName};
 
 // Channel for sending result of transfer validation
