@@ -268,7 +268,9 @@ impl Session {
                     correlation_id,
                     ..
                 } => {
-                    debug!("Event received to be processed");
+                    debug!("Event received to be processed: {:?}", correlation_id);
+                    trace!("Event received is: {:?}", event);
+
                     if let Event::TransferValidated { event, .. } = event {
                         let transfers = transfers.read().await;
                         let sender = transfers.get(&correlation_id);
