@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.59.0](https://github.com/maidsafe/sn_client/compare/v0.58.0...v0.59.0) (2021-06-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* sn_messaging bump non-backward compatible.
+
+* changes to upgrade sn_messaging to v34.0 ([3d405a7](https://github.com/maidsafe/sn_client/commit/3d405a73bf555e0d9aef32ae71c3cd92d322e52a))
+
 ## [0.58.0](https://github.com/maidsafe/sn_client/compare/v0.57.5...v0.58.0) (2021-06-08)
 
 
