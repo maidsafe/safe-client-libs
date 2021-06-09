@@ -46,7 +46,7 @@ pub struct Session {
     incoming_err_sender: Arc<Sender<CmdError>>,
     endpoint: Option<Endpoint>,
     /// elders we've managed to connect to
-    connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
+    connected_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
     /// all elders we know about from SectionInfo messages
     all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
@@ -66,7 +66,7 @@ impl Session {
             incoming_err_sender: Arc::new(err_sender),
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),
-            connected_elders: Arc::new(Mutex::new(Default::default())),
+            connected_elders: Arc::new(RwLock::new(Default::default())),
             all_known_elders: Arc::new(Mutex::new(Default::default())),
             section_prefix: Arc::new(Mutex::new(None)),
             is_connecting_to_new_elders: false,
@@ -79,7 +79,7 @@ impl Session {
     }
 
     pub async fn get_elder_names(&self) -> BTreeSet<XorName> {
-        let elders = self.connected_elders.lock().await;
+        let elders = self.connected_elders.read().await;
         elders.values().cloned().collect()
     }
 

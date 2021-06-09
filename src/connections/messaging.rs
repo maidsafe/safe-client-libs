@@ -107,7 +107,7 @@ impl Session {
 
         debug!(
             "Successfully obtained the list of Elders to send all messages to: {:?}",
-            self.connected_elders.lock().await.keys()
+            self.connected_elders.read().await.keys()
         );
 
         Ok(())
@@ -118,7 +118,7 @@ impl Session {
         let msg_id = MessageId::new();
         let endpoint = self.endpoint()?.clone();
 
-        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.read().await.keys().cloned().collect();
         debug!(
             "Sending command w/id {:?}, to {} Elders",
             msg_id,
@@ -196,7 +196,7 @@ impl Session {
             cmd, msg_id
         );
         let endpoint = self.endpoint()?.clone();
-        let elders: Vec<SocketAddr> = self.connected_elders.lock().await.keys().cloned().collect();
+        let elders: Vec<SocketAddr> = self.connected_elders.read().await.keys().cloned().collect();
         let pending_transfers = self.pending_transfers.clone();
 
         let section_pk = self
@@ -277,7 +277,7 @@ impl Session {
         // connected Elders to the data we are querying
         let elders: Vec<SocketAddr> = self
             .connected_elders
-            .lock()
+            .read()
             .await
             .clone()
             .into_iter()
@@ -486,7 +486,7 @@ impl Session {
 
         trace!("We now know our {} Elders.", peers_len);
         {
-            let mut session_elders = self.connected_elders.lock().await;
+            let mut session_elders = self.connected_elders.write().await;
             *session_elders = new_elders;
         }
 
