@@ -50,7 +50,7 @@ pub struct Session {
     /// all elders we know about from SectionInfo messages
     all_known_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
     pub section_key_set: Arc<RwLock<Option<PublicKeySet>>>,
-    section_prefix: Arc<Mutex<Option<Prefix>>>,
+    section_prefix: Arc<RwLock<Option<Prefix>>>,
     is_connecting_to_new_elders: bool,
 }
 
@@ -68,7 +68,7 @@ impl Session {
             section_key_set: Arc::new(RwLock::new(None)),
             connected_elders: Arc::new(RwLock::new(Default::default())),
             all_known_elders: Arc::new(RwLock::new(Default::default())),
-            section_prefix: Arc::new(Mutex::new(None)),
+            section_prefix: Arc::new(RwLock::new(None)),
             is_connecting_to_new_elders: false,
         })
     }
@@ -112,6 +112,6 @@ impl Session {
 
     /// Get section's prefix
     pub async fn section_prefix(&self) -> Option<Prefix> {
-        *self.section_prefix.lock().await
+        *self.section_prefix.read().await
     }
 }

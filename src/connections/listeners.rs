@@ -195,7 +195,7 @@ impl Session {
 
         {
             // update section prefix
-            let mut prefix = self.section_prefix.lock().await;
+            let mut prefix = self.section_prefix.write().await;
             *prefix = Some(sap.prefix);
         }
 
