@@ -481,7 +481,7 @@ impl Session {
             warn!("Not attempted to connect, insufficient elders yet known");
         }
 
-        let new_elders = self.all_known_elders.lock().await.clone();
+        let new_elders = self.all_known_elders.read().await.clone();
         let peers_len = new_elders.len();
 
         trace!("We now know our {} Elders.", peers_len);

@@ -48,7 +48,7 @@ pub struct Session {
     /// elders we've managed to connect to
     connected_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
     /// all elders we know about from SectionInfo messages
-    all_known_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
+    all_known_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
     pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
     section_prefix: Arc<Mutex<Option<Prefix>>>,
     is_connecting_to_new_elders: bool,
@@ -67,7 +67,7 @@ impl Session {
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),
             connected_elders: Arc::new(RwLock::new(Default::default())),
-            all_known_elders: Arc::new(Mutex::new(Default::default())),
+            all_known_elders: Arc::new(RwLock::new(Default::default())),
             section_prefix: Arc::new(Mutex::new(None)),
             is_connecting_to_new_elders: false,
         })
@@ -85,7 +85,7 @@ impl Session {
 
     /// Get the elders count of our section elders as provided by SectionInfo
     pub async fn known_elders_count(&self) -> usize {
-        self.all_known_elders.lock().await.len()
+        self.all_known_elders.read().await.len()
     }
 
     pub fn endpoint(&self) -> Result<&Endpoint, Error> {
