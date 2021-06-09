@@ -41,7 +41,7 @@ pub struct Client {
     keypair: Keypair,
     transfer_actor: Arc<RwLock<SafeTransferActor<Keypair>>>,
     simulated_farming_payout_dot: Dot<PublicKey>,
-    incoming_errors: Arc<Mutex<Receiver<CmdError>>>,
+    incoming_errors: Arc<RwLock<Receiver<CmdError>>>,
     session: Session,
 }
 
@@ -138,7 +138,7 @@ impl Client {
             transfer_actor,
             simulated_farming_payout_dot,
             session,
-            incoming_errors: Arc::new(Mutex::new(err_receiver)),
+            incoming_errors: Arc::new(RwLock::new(err_receiver)),
         };
 
         if cfg!(feature = "simulated-payouts") {
@@ -215,7 +215,7 @@ impl Client {
 
     #[cfg(test)]
     pub async fn expect_cmd_error(&mut self) -> Option<CmdError> {
-        self.incoming_errors.lock().await.recv().await
+        self.incoming_errors.write().await.recv().await
     }
 }
 
