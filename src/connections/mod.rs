@@ -49,7 +49,7 @@ pub struct Session {
     connected_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
     /// all elders we know about from SectionInfo messages
     all_known_elders: Arc<RwLock<BTreeMap<SocketAddr, XorName>>>,
-    pub section_key_set: Arc<Mutex<Option<PublicKeySet>>>,
+    pub section_key_set: Arc<RwLock<Option<PublicKeySet>>>,
     section_prefix: Arc<Mutex<Option<Prefix>>>,
     is_connecting_to_new_elders: bool,
 }
@@ -65,7 +65,7 @@ impl Session {
             pending_transfers: Arc::new(RwLock::new(HashMap::default())),
             incoming_err_sender: Arc::new(err_sender),
             endpoint: None,
-            section_key_set: Arc::new(Mutex::new(None)),
+            section_key_set: Arc::new(RwLock::new(None)),
             connected_elders: Arc::new(RwLock::new(Default::default())),
             all_known_elders: Arc::new(RwLock::new(Default::default())),
             section_prefix: Arc::new(Mutex::new(None)),
@@ -99,7 +99,7 @@ impl Session {
     }
 
     pub async fn section_key(&self) -> Result<PublicKey, Error> {
-        let keys = self.section_key_set.lock().await.clone();
+        let keys = self.section_key_set.read().await.clone();
 
         match keys.borrow() {
             Some(section_key_set) => Ok(PublicKey::Bls(section_key_set.public_key())),

@@ -185,7 +185,7 @@ impl Session {
 
         {
             // Update session key set
-            let mut keyset = self.section_key_set.lock().await;
+            let mut keyset = self.section_key_set.write().await;
             if *keyset == Some(sap.public_key_set.clone()) {
                 trace!("We have previously received the key set already.");
                 return Ok(());

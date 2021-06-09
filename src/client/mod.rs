@@ -117,7 +117,7 @@ impl Client {
 
         let elder_pk_set = session
             .section_key_set
-            .lock()
+            .read()
             .await
             .clone()
             .ok_or(Error::NotBootstrapped)?;

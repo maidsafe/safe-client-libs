@@ -88,7 +88,7 @@ impl Session {
             )
             .await
             {
-                we_have_keyset = self.section_key_set.lock().await.is_some();
+                we_have_keyset = self.section_key_set.read().await.is_some();
             } else {
                 // Remove the unresponsive peer we boostrapped to and bootstrap again
                 let _ = bootstrap_nodes.remove(&bootstrapped_peer);
