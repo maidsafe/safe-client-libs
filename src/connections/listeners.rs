@@ -25,8 +25,8 @@ impl Session {
     /// Remove a pending transfer sender from the listener map
     pub async fn remove_pending_transfer_sender(&self, msg_id: &MessageId) -> Result<(), Error> {
         let pending_transfers = self.pending_transfers.clone();
-        debug!("Pending transfers at this point: {:?}", pending_transfers);
-        let mut listeners = pending_transfers.lock().await;
+        let mut listeners = pending_transfers.write().await;
+        debug!("Pending transfers at this point: {:?}", listeners);
         let _ = listeners
             .remove(msg_id)
             .ok_or(Error::NoTransferValidationListener)?;
@@ -246,11 +246,12 @@ impl Session {
                 correlation_id,
                 ..
             } => {
-                trace!(
-                    "Query response (correlation id: {}): {:?}",
-                    correlation_id,
-                    response
+                debug!(
+                    "Query response (relating to msgid: {})",
+                    correlation_id
                 );
+
+                trace!("The received query response is {:?}", response);
     
                 // Note that this doesn't remove the sender from here since multiple
                 // responses corresponding to the same message ID might arrive.
@@ -271,9 +272,11 @@ impl Session {
                 correlation_id,
                 ..
             } => {
+                debug!("Event received to be processed");
                 if let Event::TransferValidated { event, .. } = event {
-                    if let Some(sender) =
-                        transfers.lock().await.get_mut(&correlation_id)
+                    let transfers = transfers.read().await;
+                    let sender = transfers.get(&correlation_id);
+                    if let Some(sender) = sender
                     {
                         let _ = sender.send(Ok(event)).await;
                     } else {

@@ -30,7 +30,7 @@ use xor_name::{Prefix, XorName};
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<QueryResponse>;
 
-type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
+type PendingTransferValidations = Arc<RwLock<HashMap<MessageId, TransferValidationSender>>>;
 type PendingQueryResponses = Arc<RwLock<HashMap<MessageId, QueryResponseSender>>>;
 
 pub(crate) struct QueryResult {
@@ -62,7 +62,7 @@ impl Session {
         Ok(Self {
             qp2p,
             pending_queries: Arc::new(RwLock::new(HashMap::default())),
-            pending_transfers: Arc::new(Mutex::new(HashMap::default())),
+            pending_transfers: Arc::new(RwLock::new(HashMap::default())),
             incoming_err_sender: Arc::new(err_sender),
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),

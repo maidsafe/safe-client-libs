@@ -213,7 +213,7 @@ impl Session {
         });
         let msg_bytes = msg.serialize(dest_section_name, section_pk)?;
 
-        let _ = pending_transfers.lock().await.insert(msg_id, sender);
+        let _ = pending_transfers.write().await.insert(msg_id, sender);
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
