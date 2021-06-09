@@ -234,7 +234,13 @@ impl Session {
             msg.id(),
             src
         );
-        match msg {
+        let queries = self.pending_queries.clone();
+        let transfers = self.pending_transfers.clone();
+        let error_sender = self.incoming_err_sender.clone();
+        let _ = tokio::spawn(async move {
+
+            debug!("Thread spawned to handle this client message");
+            match msg {
             ProcessMsg::QueryResponse {
                 response,
                 correlation_id,
@@ -245,12 +251,12 @@ impl Session {
                     correlation_id,
                     response
                 );
-
+    
                 // Note that this doesn't remove the sender from here since multiple
                 // responses corresponding to the same message ID might arrive.
                 // Once we are satisfied with the response this is channel is discarded in
                 // ConnectionManager::send_query
-                if let Some(sender) = self.pending_queries.lock().await.get(&correlation_id) {
+                if let Some(sender) = &queries.read().await.get(&correlation_id) {
                     trace!(
                         "Sending response for query w/{} via channel.",
                         correlation_id
@@ -267,7 +273,7 @@ impl Session {
             } => {
                 if let Event::TransferValidated { event, .. } = event {
                     if let Some(sender) =
-                        self.pending_transfers.lock().await.get_mut(&correlation_id)
+                        transfers.lock().await.get_mut(&correlation_id)
                     {
                         let _ = sender.send(Ok(event)).await;
                     } else {
@@ -290,11 +296,12 @@ impl Session {
                     correlation_id
                 );
                 trace!("Error received is: {:?}", error);
-                let _ = self.incoming_err_sender.send(error).await;
+                let _ = error_sender.send(error).await;
             }
             msg => {
                 warn!("Ignoring unexpected message type received: {:?}", msg);
             }
         };
+        });
     }
 }

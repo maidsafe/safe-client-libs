@@ -23,7 +23,7 @@ use std::{
 };
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use xor_name::{Prefix, XorName};
 
 // Channel for sending result of transfer validation
@@ -31,7 +31,7 @@ type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<QueryResponse>;
 
 type PendingTransferValidations = Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>;
-type PendingQueryResponses = Arc<Mutex<HashMap<MessageId, QueryResponseSender>>>;
+type PendingQueryResponses = Arc<RwLock<HashMap<MessageId, QueryResponseSender>>>;
 
 pub(crate) struct QueryResult {
     pub response: QueryResponse,
@@ -43,7 +43,7 @@ pub struct Session {
     qp2p: QuicP2p,
     pending_queries: PendingQueryResponses,
     pending_transfers: PendingTransferValidations,
-    incoming_err_sender: Sender<CmdError>,
+    incoming_err_sender: Arc<Sender<CmdError>>,
     endpoint: Option<Endpoint>,
     /// elders we've managed to connect to
     connected_elders: Arc<Mutex<BTreeMap<SocketAddr, XorName>>>,
@@ -61,9 +61,9 @@ impl Session {
         let qp2p = qp2p::QuicP2p::with_config(Some(qp2p_config), Default::default(), true)?;
         Ok(Self {
             qp2p,
-            pending_queries: Arc::new(Mutex::new(HashMap::default())),
+            pending_queries: Arc::new(RwLock::new(HashMap::default())),
             pending_transfers: Arc::new(Mutex::new(HashMap::default())),
-            incoming_err_sender: err_sender,
+            incoming_err_sender: Arc::new(err_sender),
             endpoint: None,
             section_key_set: Arc::new(Mutex::new(None)),
             connected_elders: Arc::new(Mutex::new(Default::default())),

@@ -303,7 +303,7 @@ impl Session {
         // We send the same message to all Elders concurrently
         let mut tasks = FuturesUnordered::new();
         let (sender, mut receiver) = channel::<QueryResponse>(7);
-        let _ = pending_queries.lock().await.insert(msg_id, sender);
+        let _ = pending_queries.write().await.insert(msg_id, sender);
 
         // Set up response listeners
         for socket in elders {
@@ -422,7 +422,7 @@ impl Session {
 
         // Remove the response sender
         trace!("Removing channel for {:?}", msg_id);
-        let _ = pending_queries.lock().await.remove(&msg_id);
+        let _ = pending_queries.write().await.remove(&msg_id);
 
         response
             .map(|response| QueryResult { response, msg_id })
