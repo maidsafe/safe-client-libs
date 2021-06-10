@@ -404,12 +404,87 @@ impl Session {
                         responses_discarded += 1;
                     }
                 }
+                // Erring on the side of positivity. \
+                // Saving error, but not returning until we have more responses in
+                // (note, this will overwrite prior errors, so we'll just return whicever was last received)
                 (Ok(Some(QueryResponse::GetBlob(Err(error)))), Some(_)) => {
-                    // Erring on the side of positivity. \
-                    // Saving error, but not returning until we have more responses in
-                    // (note, this will overwrite prior errors, so we'll just return whicever was last received)
                     debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
                     error_response = Some(QueryResponse::GetBlob(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetBalance(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetBalance(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetMap(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetMap(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetRegister(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetRegister(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetSequence(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetSequence(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetStoreCost(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetStoreCost(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetMapShell(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetMapShell(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetMapValue(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetMapValue(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetMapVersion(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetMapVersion(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetRegisterOwner(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetRegisterOwner(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetRegisterPolicy(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetRegisterPolicy(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetRegisterUserPermissions(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetRegisterUserPermissions(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetSequenceLastEntry(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetSequenceLastEntry(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetSequencePrivatePolicy(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetSequencePrivatePolicy(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetSequencePublicPolicy(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetSequencePublicPolicy(Err(error)));
+                    responses_discarded += 1;
+                }
+                (Ok(Some(QueryResponse::GetSequenceRange(Err(error)))), None) => {
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetSequenceRange(Err(error)));
                     responses_discarded += 1;
                 }
                 (Ok(Some(response)), _) => {
