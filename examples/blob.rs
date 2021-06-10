@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     let xorurl = SafeUrl::encode_blob(*address.name(), SafeContentType::Raw, DEFAULT_XORURL_BASE)?;
     println!("Blob stored at xorurl: {}", xorurl);
 
-    sleep(Duration::from_millis(4000)).await;
+    sleep(Duration::from_secs(10)).await;
 
     println!("Fetching Blob from the network now...");
     let data = client.read_blob(address, None, None).await?;
