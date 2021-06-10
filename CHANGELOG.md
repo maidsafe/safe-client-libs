@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.59.1](https://github.com/maidsafe/sn_client/compare/v0.59.0...v0.59.1) (2021-06-10)
+
+
+### Features
+
+* always reconnect to elders ([1a3afa3](https://github.com/maidsafe/sn_client/commit/1a3afa3117d5f44036b48bf6799f2695cc3dfd78))
+
 ## [0.59.0](https://github.com/maidsafe/sn_client/compare/v0.58.0...v0.59.0) (2021-06-09)
 
 
