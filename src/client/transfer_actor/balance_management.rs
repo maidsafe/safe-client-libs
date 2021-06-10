@@ -136,18 +136,17 @@ impl Client {
         // first make sure our balance  history is up to date
         self.get_history().await?;
 
-        let temp_actor = self.transfer_actor.read().await;
         info!(
             "Our actor balance at send: {:?}",
-            temp_actor.balance()
+            self.transfer_actor.read().await.balance()
         );
 
-        let initiated = temp_actor
+        let initiated = self
+            .transfer_actor
+            .read()
+            .await
             .transfer(amount, to, "".to_string())?
             .ok_or(Error::NoTransferGenerated)?;
-        
-        // lets drop the read
-        drop(temp_actor);
 
         let signed_transfer = SignedTransfer {
             debit: initiated.signed_debit,
@@ -156,18 +155,13 @@ impl Client {
         let dot = signed_transfer.id();
         let cmd = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
 
-        let mut actor_w_write_lock = self.transfer_actor
+        self.transfer_actor
             .write()
-            .await;
-
-        actor_w_write_lock
+            .await
             .apply(ActorEvent::TransferInitiated(TransferInitiated {
                 signed_debit: signed_transfer.debit.clone(),
                 signed_credit: signed_transfer.credit.clone(),
             }))?;
-
-        // drop write lock before we await validation
-        drop(actor_w_write_lock);
 
         let transfer_proof: TransferAgreementProof =
             self.await_validation(cmd, signed_transfer.id()).await?;
