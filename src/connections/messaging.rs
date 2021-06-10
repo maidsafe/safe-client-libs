@@ -374,6 +374,7 @@ impl Session {
         }
 
         let response = loop {
+            let mut error_response = None;
             match (
                 timeout(Duration::from_secs(QUERY_TIMEOUT_SECONDS), receiver.recv()).await,
                 chunk_addr,
@@ -403,6 +404,14 @@ impl Session {
                         responses_discarded += 1;
                     }
                 }
+                (Ok(Some(QueryResponse::GetBlob(Err(error)))), Some(_)) => {
+                    // Erring on the side of positivity. \
+                    // Saving error, but not returning until we have more responses in
+                    // (note, this will overwrite prior errors, so we'll just return whicever was last received)
+                    debug!("QueryResponse error received (but may be overridden by a non-error reponse from another elder): {:#?}", error);
+                    error_response = Some(QueryResponse::GetBlob(Err(error)));
+                    responses_discarded += 1;
+                }
                 (Ok(Some(response)), _) => {
                     debug!("QueryResponse received is: {:#?}", response);
                     break Some(response);
@@ -420,7 +429,7 @@ impl Session {
                 }
             }
             if responses_discarded == elders_len {
-                break None;
+                break error_response;
             }
         };
 
