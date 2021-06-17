@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.61.1](https://github.com/maidsafe/sn_client/compare/v0.61.0...v0.61.1) (2021-06-17)
+
+
+### Bug Fixes
+
+* use tokio 1.6, 1.7 seems buggy ([5f8749c](https://github.com/maidsafe/sn_client/commit/5f8749ce3ca78c832ed69184e9398d4ee9b43dc8))
+
 ## [0.61.0](https://github.com/maidsafe/sn_client/compare/v0.60.0...v0.61.0) (2021-06-16)
 
 
