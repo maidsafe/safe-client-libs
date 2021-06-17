@@ -554,7 +554,7 @@ mod tests {
         let _ = retry_loop!(client.read_blob(address, None, None));
 
         let balance_before_delete = client.get_balance().await?;
-        client.delete_blob(address).await?;
+        retry_loop!(client.delete_blob(address));
         let new_balance = client.get_balance().await?;
 
         // make sure we have _some_ balance

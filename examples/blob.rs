@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
 
     println!("Fetching Blob from the network now...");
     let data = client.read_blob(address, None, None).await?;
-    println!("Blob read from {:?}:", address);
+    println!("Blob read from {:?}: {:?}", address, data);
     stdout()
         .write_all(&data)
         .context("Failed to print out the content of the file")?;
@@ -49,4 +49,5 @@ async fn main() -> Result<()> {
     println!();
 
     Ok(())
+
 }
