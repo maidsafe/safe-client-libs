@@ -666,7 +666,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::retry_loop_for_pattern;
+    use crate::{retry_loop_for_pattern, retry_loop};
     use crate::utils::test_utils::{create_test_client, gen_ed_keypair};
     use anyhow::{anyhow, bail, Result};
     use sn_data_types::{MapAction, MapKind, Token};
@@ -858,7 +858,7 @@ mod tests {
         let client = create_test_client().await?;
         let owner = client.public_key();
 
-        let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
+        let _ = retry_loop!(client.store_unseq_map(name, tag, owner, None, None));
 
         let mut client = create_test_client().await?;
 
