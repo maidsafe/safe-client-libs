@@ -49,5 +49,4 @@ async fn main() -> Result<()> {
     println!();
 
     Ok(())
-
 }
