@@ -666,8 +666,8 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{retry_loop_for_pattern, retry_loop};
     use crate::utils::test_utils::{create_test_client, gen_ed_keypair};
+    use crate::{retry_loop, retry_loop_for_pattern};
     use anyhow::{anyhow, bail, Result};
     use sn_data_types::{MapAction, MapKind, Token};
     use sn_messaging::client::Error as ErrorMessage;
