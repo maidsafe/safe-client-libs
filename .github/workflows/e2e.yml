@@ -107,5 +107,5 @@ jobs:
           ls ~/.safe
           ls ~/.safe/node
           ls $HOME/.safe/node/baby-fleming-nodes
-          cat $HOME/.safe/node/baby-fleming-nodes/sn-node-genesis/sn_node.log
+          cat $HOME/.safe/node/baby-fleming-nodes/sn-node-genesis/sn_node_rCURRENT.log
         if: failure()
