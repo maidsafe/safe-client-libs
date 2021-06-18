@@ -59,16 +59,6 @@ impl Client {
     {
         trace!("Getting balance for {:?}", self.public_key());
 
-        // we're a standard client grabbing our own key's balance
-        //
-        if let Err(error) = self.get_history().await {
-            match error {
-                Error::ElderHistoryOutofDate => {
-                    // do nothing, we know the truth
-                }
-                other_error => return Err(other_error),
-            }
-        };
         self.get_balance_from_network(None).await
     }
 
@@ -192,7 +182,7 @@ impl Client {
         let current_nano = cost_of_put.as_nano();
         let buffered_cost = Token::from_nano(
             current_nano
-                .checked_add(current_nano / 5)
+                .checked_add(current_nano / 2)
                 .unwrap_or(current_nano),
         );
         trace!(
@@ -212,8 +202,6 @@ impl Client {
 
         // Compute number of bytes
         let bytes = serialize(cmd)?.len() as u64;
-
-        self.get_history().await?;
 
         let (bytes, cost_of_put, section_key) = self.get_store_cost(bytes).await?;
         info!(

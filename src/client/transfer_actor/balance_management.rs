@@ -133,9 +133,6 @@ impl Client {
     ) -> Result<(u64, PublicKey), Error> {
         info!("Sending token");
 
-        // first make sure our balance  history is up to date
-        self.get_history().await?;
-
         info!(
             "Our actor balance at send: {:?}",
             self.transfer_actor.read().await.balance()

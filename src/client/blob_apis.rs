@@ -650,6 +650,14 @@ mod tests {
     }
 
     #[tokio::test]
+    pub async fn create_and_retrieve_100mb_public() -> Result<()> {
+        let size = 1024 * 1024 * 100;
+        gen_data_then_create_and_retrieve(size, true).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
     pub async fn create_and_retrieve_10mb_public() -> Result<()> {
         let size = 1024 * 1024 * 10;
         gen_data_then_create_and_retrieve(size, true).await?;
