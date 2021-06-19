@@ -154,6 +154,11 @@ impl Client {
             }
         }
 
+        if !is_random_client {
+            // update our local state
+            client.get_history().await?;
+        }
+
         Ok(client)
     }
 
