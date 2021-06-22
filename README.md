@@ -1,3 +1,8 @@
+## **PLEASE NOTE THAT THIS REPOSITORY HAS NOW BEEN ARCHIVED**
+### All client development is now via the [safe_network](https://github.com/maidsafe/safe_network) crate
+
+#
+
 # sn_client
 
 | [![](http://meritbadge.herokuapp.com/sn_client)](https://crates.io/crates/sn_client) | [![Documentation](https://docs.rs/sn_client/badge.svg)](https://docs.rs/sn_client) |
